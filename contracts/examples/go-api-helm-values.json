@@ -1,0 +1,19 @@
+{
+  "service": { "name": "orders-api", "owner": "orders-team", "environment": "staging" },
+  "image": {
+    "repository": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/orders-api",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "deployment": {
+    "port": 8080,
+    "health": { "livePath": "/health/live", "readyPath": "/health/ready" },
+    "resources": { "cpu": "250m", "memory": "256Mi" },
+    "autoscaling": { "minReplicas": 1, "maxReplicas": 3, "targetCPUUtilization": 70 },
+    "environment": { "LOG_LEVEL": "info" }
+  },
+  "ingress": { "hostname": "orders-api.staging.example.com" },
+  "database": { "engine": "postgres", "secretName": "orders-api-db" },
+  "secrets": [
+    { "environmentVariable": "DATABASE_URL", "secretName": "orders-api-db", "key": "url" }
+  ]
+}

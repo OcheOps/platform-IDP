@@ -38,7 +38,9 @@ Unavailable or stale pricing is prominent and can be configured to block merge.
 
 ## Rightsizing guardrails
 
-V1 offers approved capacity tiers rather than arbitrary quantities. It flags
+V1 offers approved replica pairings rather than arbitrary quantities. Initial
+pairings support min/max ranges beginning at one to three replicas and scaling
+to at most ten replicas. It flags
 high replica counts, memory/CPU imbalance, previews above quota, and requests
 whose incremental estimate exceeds the installation's review threshold. It
 does not claim utilization-based savings before actual metrics exist.

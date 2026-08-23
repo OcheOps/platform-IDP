@@ -13,8 +13,8 @@
       "additionalProperties": false,
       "required": ["service", "owner", "environment", "requestId"],
       "properties": {
-        "service": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$", "maxLength": 40 },
-        "owner": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$" },
+        "service": { "$ref": "common.schema.json#/$defs/serviceName" },
+        "owner": { "$ref": "common.schema.json#/$defs/githubTeam" },
         "environment": { "enum": ["staging", "preview"] },
         "requestId": { "type": "string", "format": "uuid" },
         "pullRequest": { "type": "integer", "minimum": 1 }
@@ -25,24 +25,8 @@
       "additionalProperties": false,
       "required": ["template", "image", "deployment", "database", "dns", "secrets"],
       "properties": {
-        "template": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["id", "version"],
-          "properties": {
-            "id": { "enum": ["go-chi-api", "node-nest-api", "java-spring-api", "nextjs-web"] },
-            "version": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" }
-          }
-        },
-        "image": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["repository", "digest"],
-          "properties": {
-            "repository": { "type": "string", "minLength": 1 },
-            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
-          }
-        },
+        "template": { "$ref": "common.schema.json#/$defs/template" },
+        "image": { "$ref": "common.schema.json#/$defs/image" },
         "deployment": { "$ref": "helm-values.schema.json#/$defs/deployment" },
         "database": {
           "type": "object",
@@ -51,7 +35,14 @@
           "properties": {
             "engine": { "enum": ["none", "postgres"] },
             "secretRef": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$" }
-          }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "engine": { "const": "postgres" } }, "required": ["engine"] },
+              "then": { "required": ["secretRef"] },
+              "else": { "not": { "required": ["secretRef"] } }
+            }
+          ]
         },
         "dns": {
           "type": "object",
@@ -83,6 +74,12 @@
         "properties": {
           "metadata": { "required": ["pullRequest"] },
           "spec": { "required": ["expiresAt"] }
+        }
+      },
+      "else": {
+        "properties": {
+          "metadata": { "not": { "required": ["pullRequest"] } },
+          "spec": { "not": { "required": ["expiresAt"] } }
         }
       }
     }

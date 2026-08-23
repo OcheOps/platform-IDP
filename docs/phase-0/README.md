@@ -5,6 +5,9 @@ OpenTofu, GitHub workflows, and shared Helm chart will implement.
 
 ## Normative artifacts
 
+- [`contracts/schemas/common.schema.json`](../../contracts/schemas/common.schema.json)
+  is the canonical source for service identity, template, image, resource, and
+  approved replica definitions shared by the other schemas.
 - [`contracts/schemas/service-request.schema.json`](../../contracts/schemas/service-request.schema.json)
   defines the developer's staging request.
 - [`contracts/schemas/environment.schema.json`](../../contracts/schemas/environment.schema.json)

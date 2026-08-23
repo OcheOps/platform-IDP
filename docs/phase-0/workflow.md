@@ -30,6 +30,24 @@ and must label stale or unavailable observations; it must not invent success.
 | `deleted` | Declared resources are absent and outputs are archived | terminal |
 | `cancelled` | An unmerged request is closed | terminal |
 
+## Generated repository lifecycle
+
+Repository creation is a child workflow correlated to the service request:
+
+| State | Entered when | Permitted next states |
+|---|---|---|
+| `repository_pending` | Request validation succeeds | `repository_rendering`, `cancelled` |
+| `repository_rendering` | A pinned template version is rendered | `repository_creating`, `repository_failed` |
+| `repository_creating` | Rendered output and settings pass validation | `repository_ready`, `repository_failed` |
+| `repository_failed` | Render, GitHub creation, protection, or initial push fails | `repository_rendering`, `repository_creating`, `cancelled` |
+| `repository_ready` | Repository ID is recorded, initial commit exists, and protection/settings match policy | `planning` |
+
+The workflow records the GitHub repository ID as soon as creation succeeds.
+Retries first look up that ID and canonical name, then repair missing settings or
+content instead of creating another repository. A repository created by a
+failed request is retained in a quarantined/private state until retry or an
+explicit audited cleanup; it is never silently deleted.
+
 ## Approval invariants
 
 - Approvals bind to the pull request head SHA and plan digest.

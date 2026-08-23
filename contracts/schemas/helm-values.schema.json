@@ -2,7 +2,59 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-idp.dev/schemas/helm-values.schema.json",
   "title": "Shared service Helm values",
-  "$ref": "#/$defs/deployment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["service", "image", "deployment", "ingress", "database", "secrets"],
+  "properties": {
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "owner", "environment"],
+      "properties": {
+        "name": { "$ref": "common.schema.json#/$defs/serviceName" },
+        "owner": { "$ref": "common.schema.json#/$defs/githubTeam" },
+        "environment": { "enum": ["staging", "preview"] }
+      }
+    },
+    "image": { "$ref": "common.schema.json#/$defs/image" },
+    "deployment": { "$ref": "#/$defs/deployment" },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hostname"],
+      "properties": { "hostname": { "type": "string", "format": "hostname" } }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine"],
+      "properties": {
+        "engine": { "enum": ["none", "postgres"] },
+        "secretName": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "engine": { "const": "postgres" } }, "required": ["engine"] },
+          "then": { "required": ["secretName"] },
+          "else": { "not": { "required": ["secretName"] } }
+        }
+      ]
+    },
+    "secrets": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["environmentVariable", "secretName", "key"],
+        "properties": {
+          "environmentVariable": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "secretName": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$" },
+          "key": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
   "$defs": {
     "deployment": {
       "type": "object",
@@ -19,25 +71,8 @@
             "readyPath": { "type": "string", "pattern": "^/" }
           }
         },
-        "resources": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["cpu", "memory"],
-          "properties": {
-            "cpu": { "enum": ["100m", "250m", "500m", "1"] },
-            "memory": { "enum": ["128Mi", "256Mi", "512Mi", "1Gi", "2Gi"] }
-          }
-        },
-        "autoscaling": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["minReplicas", "maxReplicas", "targetCPUUtilization"],
-          "properties": {
-            "minReplicas": { "type": "integer", "minimum": 1, "maximum": 10 },
-            "maxReplicas": { "type": "integer", "minimum": 1, "maximum": 20 },
-            "targetCPUUtilization": { "type": "integer", "minimum": 40, "maximum": 90 }
-          }
-        },
+        "resources": { "$ref": "common.schema.json#/$defs/resources" },
+        "autoscaling": { "$ref": "common.schema.json#/$defs/helmAutoscaling" },
         "environment": {
           "type": "object",
           "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" },
