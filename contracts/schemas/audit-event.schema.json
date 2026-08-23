@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-idp.dev/schemas/audit-event.schema.json",
+  "title": "Append-only audit event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "occurredAt", "actor", "action", "subject", "requestId", "outcome"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "enum": ["user", "system", "github"] },
+        "id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "action": {
+      "enum": [
+        "request.created", "plan.completed", "approval.granted", "approval.revoked",
+        "apply.started", "apply.completed", "apply.failed", "deployment.reconciled",
+        "drift.detected", "preview.created", "preview.extended", "preview.deleted",
+        "teardown.requested", "snapshot.completed", "teardown.completed"
+      ]
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "enum": ["service", "environment", "request", "approval", "snapshot"] },
+        "id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "requestId": { "type": "string", "format": "uuid" },
+    "outcome": { "enum": ["started", "succeeded", "failed", "denied"] },
+    "reason": { "type": "string", "maxLength": 1000 },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "number", "integer", "boolean", "null"] }
+    }
+  }
+}

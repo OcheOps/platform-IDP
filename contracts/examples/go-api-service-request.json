@@ -1,0 +1,18 @@
+{
+  "apiVersion": "platform.idp/v1alpha1",
+  "kind": "ServiceRequest",
+  "metadata": {
+    "name": "orders-api",
+    "owner": "orders-team",
+    "requester": "ocheops",
+    "requestId": "f4d26f61-ef7d-4bd9-9568-ae621d91187f",
+    "description": "Order capture API"
+  },
+  "spec": {
+    "template": { "id": "go-chi-api", "version": "v0.1.0" },
+    "environment": "staging",
+    "capacity": { "cpu": "250m", "memory": "256Mi", "minReplicas": 1, "maxReplicas": 3 },
+    "database": { "engine": "postgres" },
+    "preview": { "enabled": true, "ttlHours": 72 }
+  }
+}

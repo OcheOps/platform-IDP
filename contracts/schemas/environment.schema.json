@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-idp.dev/schemas/environment.schema.json",
+  "title": "Service environment desired state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "platform.idp/v1alpha1" },
+    "kind": { "const": "ServiceEnvironment" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service", "owner", "environment", "requestId"],
+      "properties": {
+        "service": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$", "maxLength": 40 },
+        "owner": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$" },
+        "environment": { "enum": ["staging", "preview"] },
+        "requestId": { "type": "string", "format": "uuid" },
+        "pullRequest": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["template", "image", "deployment", "database", "dns", "secrets"],
+      "properties": {
+        "template": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "version"],
+          "properties": {
+            "id": { "enum": ["go-chi-api", "node-nest-api", "java-spring-api", "nextjs-web"] },
+            "version": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" }
+          }
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "digest"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+          }
+        },
+        "deployment": { "$ref": "helm-values.schema.json#/$defs/deployment" },
+        "database": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["engine"],
+          "properties": {
+            "engine": { "enum": ["none", "postgres"] },
+            "secretRef": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$" }
+          }
+        },
+        "dns": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hostname"],
+          "properties": { "hostname": { "type": "string", "format": "hostname" } }
+        },
+        "secrets": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "remoteKey"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+              "remoteKey": { "type": "string", "pattern": "^platform/[a-z0-9-/]+$" }
+            }
+          }
+        },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "metadata": { "properties": { "environment": { "const": "preview" } } } } },
+      "then": {
+        "properties": {
+          "metadata": { "required": ["pullRequest"] },
+          "spec": { "required": ["expiresAt"] }
+        }
+      }
+    }
+  ]
+}

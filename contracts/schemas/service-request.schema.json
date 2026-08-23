@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-idp.dev/schemas/service-request.schema.json",
+  "title": "Service request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "platform.idp/v1alpha1" },
+    "kind": { "const": "ServiceRequest" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "owner", "requester", "requestId"],
+      "properties": {
+        "name": { "$ref": "#/$defs/dnsLabel" },
+        "owner": { "$ref": "#/$defs/githubTeam" },
+        "requester": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$" },
+        "requestId": { "type": "string", "format": "uuid" },
+        "description": { "type": "string", "maxLength": 280 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["template", "environment", "capacity", "database"],
+      "properties": {
+        "template": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "version"],
+          "properties": {
+            "id": { "enum": ["go-chi-api", "node-nest-api", "java-spring-api", "nextjs-web"] },
+            "version": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" }
+          }
+        },
+        "environment": { "const": "staging" },
+        "capacity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpu", "memory", "minReplicas", "maxReplicas"],
+          "properties": {
+            "cpu": { "enum": ["100m", "250m", "500m", "1"] },
+            "memory": { "enum": ["128Mi", "256Mi", "512Mi", "1Gi", "2Gi"] },
+            "minReplicas": { "type": "integer", "minimum": 1, "maximum": 10 },
+            "maxReplicas": { "type": "integer", "minimum": 1, "maximum": 20 }
+          }
+        },
+        "database": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["engine"],
+          "properties": {
+            "engine": { "enum": ["none", "postgres"] }
+          }
+        },
+        "preview": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "ttlHours": { "type": "integer", "minimum": 1, "maximum": 168, "default": 72 }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "dnsLabel": { "type": "string", "minLength": 2, "maxLength": 40, "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$" },
+    "githubTeam": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$" }
+  }
+}

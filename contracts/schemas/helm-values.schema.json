@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-idp.dev/schemas/helm-values.schema.json",
+  "title": "Shared service Helm values",
+  "$ref": "#/$defs/deployment",
+  "$defs": {
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["port", "health", "resources", "autoscaling"],
+      "properties": {
+        "port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+        "health": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["livePath", "readyPath"],
+          "properties": {
+            "livePath": { "type": "string", "pattern": "^/" },
+            "readyPath": { "type": "string", "pattern": "^/" }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": { "enum": ["100m", "250m", "500m", "1"] },
+            "memory": { "enum": ["128Mi", "256Mi", "512Mi", "1Gi", "2Gi"] }
+          }
+        },
+        "autoscaling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["minReplicas", "maxReplicas", "targetCPUUtilization"],
+          "properties": {
+            "minReplicas": { "type": "integer", "minimum": 1, "maximum": 10 },
+            "maxReplicas": { "type": "integer", "minimum": 1, "maximum": 20 },
+            "targetCPUUtilization": { "type": "integer", "minimum": 40, "maximum": 90 }
+          }
+        },
+        "environment": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "additionalProperties": { "type": "string", "maxLength": 4096 }
+        }
+      }
+    }
+  }
+}
