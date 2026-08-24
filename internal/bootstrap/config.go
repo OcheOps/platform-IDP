@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/mail"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -32,9 +33,11 @@ type GitHubConfig struct {
 }
 
 type DNSConfig struct {
-	Provider string `json:"provider"`
-	ZoneID   string `json:"zoneId"`
-	Domain   string `json:"domain"`
+	Provider                  string `json:"provider"`
+	ZoneID                    string `json:"zoneId"`
+	Domain                    string `json:"domain"`
+	CloudflareTokenSecretName string `json:"cloudflareTokenSecretName,omitempty"`
+	ACMEEmail                 string `json:"acmeEmail"`
 }
 
 type NetworkConfig struct {
@@ -88,6 +91,12 @@ func (c Config) Validate() error {
 	}
 	if !domainPattern.MatchString(c.DNS.Domain) {
 		problems = append(problems, "dns.domain must be a valid domain")
+	}
+	if c.DNS.Provider == "cloudflare" && c.DNS.CloudflareTokenSecretName == "" {
+		problems = append(problems, "dns.cloudflareTokenSecretName is required for Cloudflare")
+	}
+	if address, err := mail.ParseAddress(c.DNS.ACMEEmail); err != nil || address.Address != c.DNS.ACMEEmail {
+		problems = append(problems, "dns.acmeEmail must be a valid email address")
 	}
 	if c.Network.VPCCIDR != "10.42.0.0/16" {
 		problems = append(problems, "network.vpcCidr must be 10.42.0.0/16 in the first Phase 1 slice")
@@ -149,8 +158,10 @@ func WriteGeneratedFiles(outputDir string, config Config) error {
 	}
 	files := []struct{ name, contents string }{
 		{"backend.hcl", backendConfig(config)},
+		{"addons-backend.hcl", addonsBackendConfig(config)},
 		{"bootstrap-state.auto.tfvars.json", stateVariables(config)},
 		{"foundation.auto.tfvars.json", terraformVariables(config)},
+		{"addons.auto.tfvars.json", addonsVariables(config)},
 	}
 	for _, generated := range files {
 		path := filepath.Join(outputDir, generated.name)
@@ -161,8 +172,33 @@ func WriteGeneratedFiles(outputDir string, config Config) error {
 	return nil
 }
 
+func addonsBackendConfig(config Config) string {
+	return remoteBackendConfig(config, "addons/terraform.tfstate")
+}
+
+func addonsVariables(config Config) string {
+	value := map[string]any{
+		"installation_id":              config.InstallationID,
+		"aws_region":                   config.AWS.Region,
+		"aws_profile":                  config.AWS.Profile,
+		"state_bucket_name":            stateBucket(config),
+		"state_lock_table_name":        stateLockTable(config),
+		"dns_provider":                 config.DNS.Provider,
+		"dns_zone_id":                  config.DNS.ZoneID,
+		"base_domain":                  config.DNS.Domain,
+		"acme_email":                   config.DNS.ACMEEmail,
+		"cloudflare_token_secret_name": config.DNS.CloudflareTokenSecretName,
+	}
+	data, _ := json.MarshalIndent(value, "", "  ")
+	return string(data) + "\n"
+}
+
 func backendConfig(config Config) string {
-	value := fmt.Sprintf("bucket = %q\nkey = %q\nregion = %q\ndynamodb_table = %q\nencrypt = true\n", stateBucket(config), "foundation/terraform.tfstate", config.AWS.Region, stateLockTable(config))
+	return remoteBackendConfig(config, "foundation/terraform.tfstate")
+}
+
+func remoteBackendConfig(config Config, key string) string {
+	value := fmt.Sprintf("bucket = %q\nkey = %q\nregion = %q\ndynamodb_table = %q\nencrypt = true\n", stateBucket(config), key, config.AWS.Region, stateLockTable(config))
 	if config.AWS.Profile != "" {
 		value += fmt.Sprintf("profile = %q\n", config.AWS.Profile)
 	}

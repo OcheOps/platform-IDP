@@ -1,0 +1,6 @@
+apiVersion: v2
+name: platform-bootstrap
+description: Cluster-scoped bootstrap resources installed after platform operators
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

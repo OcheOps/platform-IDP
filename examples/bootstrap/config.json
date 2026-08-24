@@ -2,7 +2,7 @@
   "installationId": "acme-platform",
   "aws": { "accountId": "123456789012", "region": "eu-west-1", "profile": "platform-admin" },
   "github": { "organization": "acme" },
-  "dns": { "provider": "route53", "zoneId": "Z123456789", "domain": "platform.acme.example" },
+  "dns": { "provider": "route53", "zoneId": "Z123456789", "domain": "platform.acme.example", "acmeEmail": "platform@acme.example" },
   "network": { "vpcCidr": "10.42.0.0/16" },
   "cluster": {
     "kubernetesVersion": "1.35",
