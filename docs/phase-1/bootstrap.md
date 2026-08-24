@@ -68,8 +68,38 @@ secret-input command and Cloudflare API zone/token preflight remain open work
 for a later bootstrap CLI slice. Until then, Cloudflare configuration is only
 structurally validated; Route 53 receives the stronger live preflight check.
 
-Prometheus, Grafana, Loki, and their storage/retention configuration are not in
-this add-ons slice.
+The same add-ons apply installs Prometheus, Grafana, Loki, and Alloy. Prometheus
+and Loki target seven-day retention. Prometheus begins size-based retention at
+20 GB, while Loki has a hard 20 GiB local-volume ceiling. Loki ingestion is also
+limited to 1 MB/s with a 2 MB burst. Alloy
+parses CRI records and labels each stream with its namespace, pod, container,
+and service (the namespace until the shared service chart supplies richer
+metadata). Prometheus discovers `ServiceMonitor` and `PodMonitor` resources in
+all namespaces so that chart can register generated services declaratively.
+All components have explicit CPU and memory requests and limits suitable as a
+small-cluster starting point; operators must rightsize them from observed load.
+
+Grafana includes Loki as a data source but is cluster-internal in this slice.
+Access it temporarily with:
+
+```bash
+kubectl -n observability port-forward service/kube-prometheus-stack-grafana 3000:80
+```
+
+Then open `http://localhost:3000`. Retrieve the generated admin password from
+the chart-managed Kubernetes Secret; do not copy it into Git or OpenTofu
+variables. Public ingress waits for GitHub-organization authentication rather
+than exposing a password-only administrative UI.
+
+This first observability path intentionally uses ephemeral storage. A pod
+reschedule, node replacement, or chart recreation can discard metrics, logs,
+Grafana settings, and dashboards not represented as code. Retention deletion is
+asynchronous; only Loki's size-limited local volume provides a hard capacity
+bound. Prometheus can temporarily exceed its 20 GB retention threshold through
+its write-ahead log, memory-mapped files, and deletion headroom.
+Do not use this setup for production or audit retention. EBS CSI, encrypted
+persistent volumes, backup, tested recovery, and dashboards-as-code remain
+Phase 1 hardening work.
 
 The Argo CD output is an expected URL, not a readiness assertion. After apply,
 inspect `kubectl -n argocd get deployments,ingress,certificate`, wait for all
