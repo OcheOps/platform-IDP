@@ -62,3 +62,20 @@ func TestExistingValidateAndRenderCommandsRemainReachable(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestInstallRequiresExplicitStage(t *testing.T) {
+	directory := t.TempDir()
+	configPath := filepath.Join(directory, "config.json")
+	data, err := os.ReadFile(filepath.Join("..", "..", "examples", "bootstrap", "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err = runWithIO(context.Background(), []string{"install", "--config", configPath}, strings.NewReader(""), &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "--stage is required") {
+		t.Fatalf("expected stage error, got %v", err)
+	}
+}

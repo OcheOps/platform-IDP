@@ -26,30 +26,53 @@ go run ./cmd/idp-bootstrap render --config .idp/config.json --output .idp/genera
 
 The operator must already have authenticated AWS CLI and GitHub CLI sessions.
 AWS credentials are never written to generated files. Review the generated
-inputs, then provision state storage before initializing the foundation:
+inputs. The guided installer advances through three explicit stages. Plan each
+stage, inspect the saved plan, then apply that exact plan by approving its
+printed SHA-256 digest:
 
 ```bash
-tofu -chdir=infrastructure/bootstrap-state init
-tofu -chdir=infrastructure/bootstrap-state plan -var-file=../../.idp/generated/bootstrap-state.auto.tfvars.json
-tofu -chdir=infrastructure/bootstrap-state apply -var-file=../../.idp/generated/bootstrap-state.auto.tfvars.json
-tofu -chdir=infrastructure/foundation init -backend-config=../../.idp/generated/backend.hcl
-tofu -chdir=infrastructure/foundation plan -var-file=../../.idp/generated/foundation.auto.tfvars.json
+go run ./cmd/idp-bootstrap install --config .idp/config.json --stage bootstrap-state
+tofu -chdir=infrastructure/bootstrap-state show "$PWD/.idp/generated/bootstrap-state.tfplan"
+go run ./cmd/idp-bootstrap install --config .idp/config.json --stage bootstrap-state --apply --approve <full-plan-digest>
+
+go run ./cmd/idp-bootstrap install --config .idp/config.json --stage foundation
+tofu -chdir=infrastructure/foundation show "$PWD/.idp/generated/foundation.tfplan"
+go run ./cmd/idp-bootstrap install --config .idp/config.json --stage foundation --apply --approve <full-plan-digest>
+
+go run ./cmd/idp-bootstrap install --config .idp/config.json --stage addons
+tofu -chdir=infrastructure/addons show "$PWD/.idp/generated/addons.tfplan"
+go run ./cmd/idp-bootstrap install --config .idp/config.json --stage addons --apply --approve <full-plan-digest>
+go run ./cmd/idp-bootstrap postflight --config .idp/config.json
 ```
+
+Planning never applies infrastructure. Applying requires both `--apply` and the
+full digest of the reviewed plan; a changed or replaced plan is rejected. Saved
+plans may contain sensitive provider data, so the installer makes them
+owner-readable only inside the Git-ignored `.idp` directory and deletes each
+plan after a successful apply. A failed apply retains its plan for inspection
+and retry. Avoid copying plan files elsewhere or attaching them to issues.
+
+The installer runs preflight checks without redisplaying raw provider output.
+It stops at the first failed stage and provides recovery context. With unchanged
+configuration, initialization, planning, and applies are safe to repeat. Backend
+configuration changes require deliberate OpenTofu backend migration and are not
+handled automatically.
+
+The add-ons apply runs postflight automatically. `postflight` is also safe to
+rerun independently when DNS or certificate propagation is still converging.
+It waits for Ready EKS nodes and Ready pods for every installed release, then
+checks the public Argo CD HTTPS endpoint. It does not redisplay raw command or
+provider output on failure.
+
+For Cloudflare, create the token Secret using the instructions below after EKS
+exists. The installer verifies that Secret before it plans add-ons, so the first
+run can intentionally stop there without losing completed foundation work.
 
 The state root intentionally uses local state for its first run; store that
 small bootstrap state securely. The foundation uses encrypted/versioned S3 and
 DynamoDB locking. The foundation provisions VPC networking, EKS managed nodes,
 shared PostgreSQL, and its master credential in Secrets Manager. The add-ons
 state is applied only after that foundation is healthy.
-
-After the foundation apply completes, install the delivery add-ons in their own
-state:
-
-```bash
-tofu -chdir=infrastructure/addons init -backend-config=../../.idp/generated/addons-backend.hcl
-tofu -chdir=infrastructure/addons plan -var-file=../../.idp/generated/addons.auto.tfvars.json
-tofu -chdir=infrastructure/addons apply -var-file=../../.idp/generated/addons.auto.tfvars.json
-```
 
 This installs ingress-nginx, cert-manager with a Let's Encrypt HTTP-01 issuer,
 External Secrets Operator, ExternalDNS, and Argo CD. Route 53 uses a dedicated
