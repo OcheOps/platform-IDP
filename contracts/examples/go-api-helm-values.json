@@ -14,6 +14,6 @@
   "ingress": { "hostname": "orders-api.staging.example.com" },
   "database": { "engine": "postgres", "secretName": "orders-api-db" },
   "secrets": [
-    { "environmentVariable": "DATABASE_URL", "secretName": "orders-api-db", "key": "url" }
+    { "environmentVariable": "DATABASE_URL", "secretName": "orders-api-db", "key": "url", "remoteKey": "platform/orders-api/staging/database" }
   ]
 }

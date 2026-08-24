@@ -1,0 +1,70 @@
+{{- include "platform-service.validate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.service.name }}
+  labels:
+    {{- include "platform-service.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.deployment.autoscaling.minReplicas }}
+  selector:
+    matchLabels:
+      {{- include "platform-service.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "platform-service.labels" . | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: service
+          image: {{ printf "%s@%s" .Values.image.repository .Values.image.digest | quote }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: {{ .Values.deployment.port }}
+              protocol: TCP
+          env:
+            {{- range $name, $value := .Values.deployment.environment }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- range .Values.secrets }}
+            - name: {{ .environmentVariable }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .key }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.deployment.health.livePath }}
+              port: http
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.deployment.health.readyPath }}
+              port: http
+          resources:
+            requests:
+              cpu: {{ .Values.deployment.resources.cpu | quote }}
+              memory: {{ .Values.deployment.resources.memory | quote }}
+            limits:
+              cpu: {{ .Values.deployment.resources.cpu | quote }}
+              memory: {{ .Values.deployment.resources.memory | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

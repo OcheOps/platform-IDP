@@ -46,11 +46,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["environmentVariable", "secretName", "key"],
+        "required": ["environmentVariable", "secretName", "key", "remoteKey"],
         "properties": {
           "environmentVariable": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
           "secretName": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$" },
-          "key": { "type": "string", "minLength": 1 }
+          "key": { "type": "string", "minLength": 1 },
+          "remoteKey": { "type": "string", "pattern": "^platform/[a-z0-9/-]+$" }
         }
       }
     }

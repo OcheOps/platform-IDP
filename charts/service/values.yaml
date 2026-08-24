@@ -1,0 +1,26 @@
+service:
+  name: example-api
+  owner: platform-team
+  environment: staging
+image:
+  repository: example.invalid/example-api
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+deployment:
+  port: 8080
+  health:
+    livePath: /health/live
+    readyPath: /health/ready
+  resources:
+    cpu: 250m
+    memory: 256Mi
+  autoscaling:
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilization: 70
+  environment:
+    LOG_LEVEL: info
+ingress:
+  hostname: example-api.staging.example.com
+database:
+  engine: none
+secrets: []

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["service", "image", "deployment", "ingress", "database", "secrets"],
+  "properties": {
+    "service": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "owner", "environment"],
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 40, "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$" },
+        "owner": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$" },
+        "environment": { "enum": ["staging", "preview"] }
+      }
+    },
+    "image": {
+      "type": "object", "additionalProperties": false, "required": ["repository", "digest"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      }
+    },
+    "deployment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["port", "health", "resources", "autoscaling"],
+      "properties": {
+        "port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+        "health": {
+          "type": "object", "additionalProperties": false, "required": ["livePath", "readyPath"],
+          "properties": { "livePath": { "type": "string", "pattern": "^/" }, "readyPath": { "type": "string", "pattern": "^/" } }
+        },
+        "resources": {
+          "type": "object", "additionalProperties": false, "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": { "enum": ["100m", "250m", "500m", "1"] },
+            "memory": { "enum": ["128Mi", "256Mi", "512Mi", "1Gi", "2Gi"] }
+          }
+        },
+        "autoscaling": {
+          "type": "object", "additionalProperties": false,
+          "required": ["minReplicas", "maxReplicas", "targetCPUUtilization"],
+          "properties": {
+            "minReplicas": { "type": "integer", "minimum": 1, "maximum": 3 },
+            "maxReplicas": { "type": "integer", "minimum": 1, "maximum": 10 },
+            "targetCPUUtilization": { "type": "integer", "minimum": 40, "maximum": 90 }
+          },
+          "oneOf": [
+            { "properties": { "minReplicas": { "const": 1 }, "maxReplicas": { "enum": [1, 2, 3, 4, 5] } } },
+            { "properties": { "minReplicas": { "const": 2 }, "maxReplicas": { "enum": [2, 3, 4, 5, 10] } } },
+            { "properties": { "minReplicas": { "const": 3 }, "maxReplicas": { "enum": [3, 4, 5, 10] } } }
+          ]
+        },
+        "environment": {
+          "type": "object", "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "additionalProperties": { "type": "string", "maxLength": 4096 }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object", "additionalProperties": false, "required": ["hostname"],
+      "properties": { "hostname": { "type": "string", "format": "hostname" } }
+    },
+    "database": {
+      "type": "object", "additionalProperties": false, "required": ["engine"],
+      "properties": {
+        "engine": { "enum": ["none", "postgres"] },
+        "secretName": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "engine": { "const": "postgres" } } },
+          "then": { "required": ["secretName"] },
+          "else": { "not": { "required": ["secretName"] } }
+        }
+      ]
+    },
+    "secrets": {
+      "type": "array", "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["environmentVariable", "secretName", "key", "remoteKey"],
+        "properties": {
+          "environmentVariable": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "secretName": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$" },
+          "key": { "type": "string", "minLength": 1 },
+          "remoteKey": { "type": "string", "pattern": "^platform/[a-z0-9/-]+$" }
+        }
+      }
+    }
+  }
+}
