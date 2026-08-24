@@ -3,14 +3,25 @@
 This slice validates operator inputs and renders non-secret OpenTofu inputs. It
 does not run `tofu apply` automatically.
 
-Replace the example AWS account, profile, DNS zone, domain, Kubernetes version,
-and documentation-only operator CIDR before use. The EKS API rejects a global
-`0.0.0.0/0` access range.
+Create a local configuration with the guided command:
 
 ```bash
-go run ./cmd/idp-bootstrap validate --config examples/bootstrap/config.json
-go run ./cmd/idp-bootstrap preflight --config examples/bootstrap/config.json
-go run ./cmd/idp-bootstrap render --config examples/bootstrap/config.json --output .idp/generated
+go run ./cmd/idp-bootstrap configure --config .idp/config.json
+```
+
+The wizard asks only for durable configuration. It never asks for AWS or GitHub
+credentials or the value of a Cloudflare API token. For Cloudflare it records
+only the name of the Kubernetes Secret that will hold the token. The config is
+created with owner-only permissions and an existing file is never overwritten.
+
+Alternatively, copy and edit the example. Replace its AWS account, profile, DNS
+zone, domain, Kubernetes version, and documentation-only operator CIDR before
+use. The EKS API rejects a global `0.0.0.0/0` access range.
+
+```bash
+go run ./cmd/idp-bootstrap validate --config .idp/config.json
+go run ./cmd/idp-bootstrap preflight --config .idp/config.json
+go run ./cmd/idp-bootstrap render --config .idp/config.json --output .idp/generated
 ```
 
 The operator must already have authenticated AWS CLI and GitHub CLI sessions.

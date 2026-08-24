@@ -53,9 +53,10 @@ type ClusterConfig struct {
 }
 
 var (
-	idPattern     = regexp.MustCompile(`^[a-z][a-z0-9-]{1,30}[a-z0-9]$`)
-	regionPattern = regexp.MustCompile(`^[a-z]{2}(?:-gov)?-[a-z]+-[0-9]$`)
-	domainPattern = regexp.MustCompile(`^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$`)
+	idPattern                     = regexp.MustCompile(`^[a-z][a-z0-9-]{1,30}[a-z0-9]$`)
+	regionPattern                 = regexp.MustCompile(`^[a-z]{2}(?:-gov)?-[a-z]+-[0-9]$`)
+	domainPattern                 = regexp.MustCompile(`^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$`)
+	kubernetesDNSSubdomainPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$`)
 )
 
 func DefaultConfig() Config {
@@ -94,6 +95,8 @@ func (c Config) Validate() error {
 	}
 	if c.DNS.Provider == "cloudflare" && c.DNS.CloudflareTokenSecretName == "" {
 		problems = append(problems, "dns.cloudflareTokenSecretName is required for Cloudflare")
+	} else if c.DNS.CloudflareTokenSecretName != "" && !validKubernetesDNSSubdomain(c.DNS.CloudflareTokenSecretName) {
+		problems = append(problems, "dns.cloudflareTokenSecretName must be a valid Kubernetes DNS subdomain")
 	}
 	if address, err := mail.ParseAddress(c.DNS.ACMEEmail); err != nil || address.Address != c.DNS.ACMEEmail {
 		problems = append(problems, "dns.acmeEmail must be a valid email address")
@@ -125,6 +128,18 @@ func (c Config) Validate() error {
 		return errors.New(strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+func validKubernetesDNSSubdomain(value string) bool {
+	if len(value) > 253 || !kubernetesDNSSubdomainPattern.MatchString(value) {
+		return false
+	}
+	for _, label := range strings.Split(value, ".") {
+		if len(label) == 0 || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+			return false
+		}
+	}
+	return true
 }
 
 func ReadConfig(path string) (Config, error) {

@@ -53,6 +53,17 @@ func TestCloudflareRequiresSecretReference(t *testing.T) {
 	}
 }
 
+func TestCloudflareSecretReferenceMustBeAKubernetesName(t *testing.T) {
+	for _, name := range []string{"Cloudflare Token", "-cloudflare", "cloudflare-", strings.Repeat("a", 254)} {
+		config := validConfig()
+		config.DNS.Provider = "cloudflare"
+		config.DNS.CloudflareTokenSecretName = name
+		if err := config.Validate(); err == nil || !strings.Contains(err.Error(), "Kubernetes DNS subdomain") {
+			t.Fatalf("expected %q to be rejected, got %v", name, err)
+		}
+	}
+}
+
 func TestGeneratedAddonConfigurationUsesSeparateStateAndReferencesOnly(t *testing.T) {
 	directory := t.TempDir()
 	config := validConfig()

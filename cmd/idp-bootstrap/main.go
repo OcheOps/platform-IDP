@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/OcheOps/platform-IDP/internal/bootstrap"
@@ -17,10 +18,15 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) error {
+	return runWithIO(ctx, args, os.Stdin, os.Stdout)
+}
+
+func runWithIO(ctx context.Context, args []string, input io.Reader, output io.Writer) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: idp-bootstrap <validate|preflight|render> --config <path>")
+		return fmt.Errorf("usage: idp-bootstrap <configure|validate|preflight|render> --config <path>")
 	}
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
+	flags.SetOutput(output)
 	configPath := flags.String("config", "", "path to operator configuration JSON")
 	outputDir := flags.String("output", ".idp/generated", "directory for generated non-secret OpenTofu inputs")
 	if err := flags.Parse(args[1:]); err != nil {
@@ -29,6 +35,23 @@ func run(ctx context.Context, args []string) error {
 	if *configPath == "" {
 		return fmt.Errorf("--config is required")
 	}
+	if args[0] == "configure" {
+		if _, err := os.Stat(*configPath); err == nil {
+			return fmt.Errorf("refusing to overwrite existing config %s", *configPath)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("inspect config target: %w", err)
+		}
+		config, err := bootstrap.Configure(input, output)
+		if err != nil {
+			return err
+		}
+		if err := bootstrap.WriteConfig(*configPath, config); err != nil {
+			return err
+		}
+		fmt.Fprintln(output, "wrote non-secret configuration to", *configPath)
+		fmt.Fprintf(output, "next: idp-bootstrap preflight --config %s\n", *configPath)
+		return nil
+	}
 	config, err := bootstrap.ReadConfig(*configPath)
 	if err != nil {
 		return err
@@ -36,7 +59,7 @@ func run(ctx context.Context, args []string) error {
 
 	switch args[0] {
 	case "validate":
-		fmt.Println("configuration is valid")
+		fmt.Fprintln(output, "configuration is valid")
 		return nil
 	case "preflight":
 		results := bootstrap.RunPreflight(ctx, bootstrap.ExecRunner{}, config)
@@ -45,7 +68,7 @@ func run(ctx context.Context, args []string) error {
 			if !result.Success {
 				status = "FAIL"
 			}
-			fmt.Printf("%-4s %-14s %s\n", status, result.Name, result.Detail)
+			fmt.Fprintf(output, "%-4s %-14s %s\n", status, result.Name, result.Detail)
 		}
 		if !bootstrap.PreflightPassed(results) {
 			return fmt.Errorf("preflight checks failed")
@@ -55,7 +78,7 @@ func run(ctx context.Context, args []string) error {
 		if err := bootstrap.WriteGeneratedFiles(*outputDir, config); err != nil {
 			return err
 		}
-		fmt.Println("generated OpenTofu inputs in", *outputDir)
+		fmt.Fprintln(output, "generated OpenTofu inputs in", *outputDir)
 		return nil
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
