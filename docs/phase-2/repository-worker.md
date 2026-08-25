@@ -20,9 +20,15 @@ automatic reconciliation stops after eight attempts for operator review.
 Only errors explicitly classified as transient are retried; permission, policy,
 and validation failures wait for operator or desired-state changes.
 
-This slice implements and tests orchestration plus the development filesystem
-store. The live GitHub App adapter is the next trust-boundary slice: it will mint
-short-lived installation tokens, use the versioned REST API, and require only
-Administration, Contents, and Members permissions needed for creation, initial
-content, rulesets, and owner-team access. No personal access token is part of
-the design.
+The live adapter signs RS256 GitHub App JWTs and exchanges them for cached,
+short-lived installation tokens. It uses the versioned REST API and requests
+only Administration (write), Contents (write), and Members (read) permissions.
+It never accepts a personal access token.
+
+`cmd/repository-worker` loads the GitHub organization from `.idp/config.json`.
+Operators provide `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and
+`GITHUB_APP_PRIVATE_KEY_FILE`; the key file must be a regular owner-only file
+and its contents are never logged. The GitHub App must be installed for all
+organization repositories so its installation token can access repositories
+created after the token is minted. `GENERATED_DIRECTORY`, `INSTALLATION_CONFIG`,
+and `GITHUB_API_URL` are optional overrides.

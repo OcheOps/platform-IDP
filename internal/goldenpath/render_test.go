@@ -31,6 +31,7 @@ func TestRenderGoChiProducesBuildableRepositoryFromDeclaredInputs(t *testing.T) 
 		{filepath.Join(".platform", "service.json"), `"githubOrganization": "acme"`},
 		{filepath.Join(".platform", "service.json"), `"awsRegion": "eu-west-2"`},
 		{filepath.Join(".platform", "service.json"), `"ecrRepository": "orders-api"`},
+		{filepath.Join(".github", "CODEOWNERS"), `* @acme/orders-team`},
 	} {
 		data, err := os.ReadFile(filepath.Join(target, check.path))
 		if err != nil {

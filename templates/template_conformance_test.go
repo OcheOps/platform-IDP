@@ -16,6 +16,7 @@ func TestGoChiTemplateConformance(t *testing.T) {
 		"go.mod", "go.sum", "Dockerfile", "Makefile", "README.md", "template.json",
 		filepath.Join("cmd", "server", "main.go"), filepath.Join("cmd", "migrate", "main.go"),
 		filepath.Join(".github", "workflows", "ci.yaml"), filepath.Join(".platform", "service.json"),
+		filepath.Join(".github", "CODEOWNERS"),
 	} {
 		if _, err := os.Stat(filepath.Join(directory, path)); err != nil {
 			t.Errorf("required template file %s: %v", path, err)
