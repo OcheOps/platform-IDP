@@ -12,7 +12,7 @@
     "environment": { "LOG_LEVEL": "info" }
   },
   "ingress": { "hostname": "orders-api.staging.example.com" },
-  "database": { "engine": "postgres", "secretName": "orders-api-db" },
+  "database": { "engine": "postgres", "secretName": "orders-api-db", "migrationCommand": "/migrate" },
   "secrets": [
     { "environmentVariable": "DATABASE_URL", "secretName": "orders-api-db", "key": "url", "remoteKey": "platform/orders-api/staging/database" }
   ]

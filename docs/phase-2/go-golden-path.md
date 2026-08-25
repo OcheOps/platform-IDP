@@ -32,5 +32,19 @@ chart creates `ExternalSecret` mappings against that namespaced store. A shared
 cluster-wide store is deliberately forbidden because it would allow one service
 namespace to request another service's secrets.
 
-The next slice renders the `go-chi-api` source repository, migration command,
-Dockerfile, GitHub Actions workflow, and platform metadata against this chart.
+The `templates/go-chi-api` golden path is a buildable reference repository.
+`internal/goldenpath.RenderGoChi` validates every declared input, copies the
+template without following symlinks or overwriting a target, substitutes module
+imports and platform metadata, and proves the rendered repository builds in its
+tests.
+
+Database-enabled values render the template's `/migrate` binary as an Argo CD
+Sync hook in wave `-1`; External Secrets reconcile in wave `-2`, and the
+Deployment follows in wave `0`. A failed migration therefore blocks rollout.
+Applied migrations record a SHA-256 checksum and fail if an already-applied SQL
+file is edited.
+
+The generated CI workflow uses commit-pinned actions, tests and vets the source,
+runs `govulncheck`, builds one image, scans that exact image with Trivy, and only
+then publishes the same local artifact to ECR through GitHub OIDC. GitOps
+promotion consumes the reported registry digest, not its commit-SHA tag.

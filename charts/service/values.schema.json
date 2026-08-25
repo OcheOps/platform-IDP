@@ -64,13 +64,14 @@
       "type": "object", "additionalProperties": false, "required": ["engine"],
       "properties": {
         "engine": { "enum": ["none", "postgres"] },
-        "secretName": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$" }
+        "secretName": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?$" },
+        "migrationCommand": { "type": "string", "pattern": "^/" }
       },
       "allOf": [
         {
           "if": { "properties": { "engine": { "const": "postgres" } } },
-          "then": { "required": ["secretName"] },
-          "else": { "not": { "required": ["secretName"] } }
+          "then": { "required": ["secretName", "migrationCommand"] },
+          "else": { "not": { "anyOf": [{ "required": ["secretName"] }, { "required": ["migrationCommand"] }] } }
         }
       ]
     },

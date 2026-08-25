@@ -1,0 +1,95 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TEST_DATABASE_URL: postgres://platform:platform-test-password@localhost:5432/service_test?sslmode=disable
+    services:
+      postgres:
+        image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+        env:
+          POSTGRES_USER: platform
+          POSTGRES_PASSWORD: platform-test-password
+          POSTGRES_DB: service_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U platform -d service_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify migration command is repeatable
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: |
+          go run ./cmd/migrate
+          go run ./cmd/migrate
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+      - name: Build tested image
+        run: docker build --tag "service:${GITHUB_SHA}" .
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: service:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+      - name: Save tested image
+        run: docker save "service:${GITHUB_SHA}" | gzip > service-image.tar.gz
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: service-image
+          path: service-image.tar.gz
+          retention-days: 1
+          compression-level: 0
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: service-image
+      - name: Load tested image
+        run: gunzip --stdout service-image.tar.gz | docker load
+      - uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Publish tested image
+        env:
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          registry="$(aws sts get-caller-identity --query Account --output text).dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$registry"
+          image="$registry/$ECR_REPOSITORY:${GITHUB_SHA}"
+          docker tag "service:${GITHUB_SHA}" "$image"
+          docker push "$image"
+          digest="$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$GITHUB_SHA" --query 'imageDetails[0].imageDigest' --output text)"
+          printf 'Published `%s@%s`\n' "$registry/$ECR_REPOSITORY" "$digest" >> "$GITHUB_STEP_SUMMARY"

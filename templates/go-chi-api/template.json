@@ -1,0 +1,9 @@
+{
+  "id": "go-chi-api",
+  "version": "v0.1.0",
+  "language": "go",
+  "runtime": "go1.26.6",
+  "defaultPort": 8080,
+  "database": { "supported": true, "engine": "postgres", "optional": true },
+  "requiredInputs": ["serviceName", "description", "owner", "githubOrganization", "modulePath", "awsRegion", "ecrRepository", "githubActionsRoleArn"]
+}

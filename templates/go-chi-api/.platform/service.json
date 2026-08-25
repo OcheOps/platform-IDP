@@ -1,0 +1,8 @@
+{
+  "template": { "id": "go-chi-api", "version": "v0.1.0" },
+  "service": { "name": "example-go-api", "description": "Example Go API service.", "owner": "platform-team" },
+  "source": { "githubOrganization": "example-org", "modulePath": "github.com/platform-idp/example-go-api" },
+  "delivery": { "awsRegion": "eu-west-1", "ecrRepository": "example-ecr-repository", "githubActionsRoleArn": "arn:aws:iam::123456789012:role/example-github-actions" },
+  "runtime": { "port": 8080, "livePath": "/health/live", "readyPath": "/health/ready", "metricsPath": "/metrics", "shutdownSeconds": 30 },
+  "database": { "engine": "postgres", "migrationCommand": "/migrate" }
+}
