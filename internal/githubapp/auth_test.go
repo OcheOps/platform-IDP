@@ -53,7 +53,7 @@ func TestInstallationTokenSourceSignsJWTAndCachesShortLivedToken(t *testing.T) {
 		if err := rsa.VerifyPKCS1v15(&key.PublicKey, crypto.SHA256, digest[:], signature); err != nil {
 			t.Errorf("invalid JWT signature: %v", err)
 		}
-		writeJSON(w, 201, map[string]any{"token": "ghs_example_token", "expires_at": now.Add(time.Hour).Format(time.RFC3339)})
+		writeJSON(w, 201, map[string]any{"token": "ghs_example_token", "expires_at": now.Add(time.Hour).Format(time.RFC3339), "permissions": map[string]string{"administration": "write", "contents": "write", "members": "read"}})
 	}))
 	server.Listener = listener
 	server.Start()
@@ -70,5 +70,50 @@ func TestInstallationTokenSourceSignsJWTAndCachesShortLivedToken(t *testing.T) {
 	}
 	if requests != 1 {
 		t.Fatalf("token requests=%d, want 1", requests)
+	}
+}
+
+func TestValidateInstallationChecksOrganizationScopeAndPermissions(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privatePEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("local HTTP sockets unavailable: %v", err)
+	}
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/app":
+			writeJSON(w, http.StatusOK, map[string]any{"owner": map[string]string{"login": "OcheOps"}, "public": false})
+		case "/app/installations/99":
+			writeJSON(w, http.StatusOK, map[string]any{
+				"account":              map[string]string{"login": "OcheOps"},
+				"target_type":          "Organization",
+				"repository_selection": "all",
+				"permissions":          map[string]string{"administration": "write", "contents": "write", "members": "read", "metadata": "read"},
+				"suspended_at":         nil,
+			})
+		case "/app/installations/99/access_tokens":
+			writeJSON(w, http.StatusCreated, map[string]any{"token": "ghs_example_token", "expires_at": now.Add(time.Hour).Format(time.RFC3339), "permissions": map[string]string{"administration": "write", "contents": "write", "members": "read"}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	server.Listener = listener
+	server.Start()
+	defer server.Close()
+	config := githubapp.AppConfig{BaseURL: server.URL, HTTPClient: server.Client(), AppID: "123", InstallationID: 99, PrivateKeyPEM: privatePEM, Now: func() time.Time { return now }}
+	if err := githubapp.ValidateInstallation(context.Background(), config, "ocheops"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInstallationTokenSourceRejectsNonNumericAppID(t *testing.T) {
+	_, err := githubapp.NewInstallationTokenSource(githubapp.AppConfig{BaseURL: "https://api.github.com", HTTPClient: http.DefaultClient, AppID: "client-id", InstallationID: 99})
+	if err == nil {
+		t.Fatal("expected invalid App ID to be rejected")
 	}
 }

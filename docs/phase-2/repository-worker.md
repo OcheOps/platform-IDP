@@ -32,3 +32,26 @@ and its contents are never logged. The GitHub App must be installed for all
 organization repositories so its installation token can access repositories
 created after the token is minted. `GENERATED_DIRECTORY`, `INSTALLATION_CONFIG`,
 and `GITHUB_API_URL` are optional overrides.
+
+Run the repeatable operator wizard to register and install the App, secure its
+downloaded private key, write the local runtime environment, and perform a
+read-only credential/permission preflight:
+
+```bash
+./scripts/setup-github-app.sh
+```
+
+Then start the development worker without sourcing the environment file:
+
+```bash
+./scripts/run-repository-worker.sh
+```
+
+The wizard disables webhooks for this polling worker, requests only the three
+permissions above, and installs for all organization repositories. That scope
+lets the worker manage repositories created later, but also grants it access to
+existing repositories, so a dedicated organization is recommended. The wizard
+never writes the private key into an environment file and refuses symlinked or
+broadly scoped key inputs. Its preflight verifies the organization, installation
+scope, exact effective permissions, credentials, and token exchange without
+creating a repository. Reruns can safely reuse an existing local configuration.

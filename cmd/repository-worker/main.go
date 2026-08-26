@@ -20,13 +20,17 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
 		slog.Error("repository worker stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(args []string) error {
+	preflight := len(args) == 1 && args[0] == "--preflight"
+	if len(args) > 0 && !preflight {
+		return errors.New("usage: repository-worker [--preflight]")
+	}
 	installation, err := bootstrap.ReadConfig(valueOrDefault("INSTALLATION_CONFIG", ".idp/config.json"))
 	if err != nil {
 		return fmt.Errorf("read installation configuration: %w", err)
@@ -45,6 +49,14 @@ func run() error {
 	tokens, err := githubapp.NewInstallationTokenSource(githubapp.AppConfig{BaseURL: apiURL, HTTPClient: httpClient, AppID: appID, InstallationID: installationID, PrivateKeyPEM: privateKey})
 	if err != nil {
 		return err
+	}
+	if preflight {
+		config := githubapp.AppConfig{BaseURL: apiURL, HTTPClient: httpClient, AppID: appID, InstallationID: installationID, PrivateKeyPEM: privateKey}
+		if err := githubapp.ValidateInstallation(context.Background(), config, installation.GitHub.Organization); err != nil {
+			return fmt.Errorf("GitHub App preflight: %w", err)
+		}
+		fmt.Println("GitHub App organization, repository scope, credentials, and permissions are valid")
+		return nil
 	}
 	github, err := githubapp.NewClient(apiURL, httpClient, tokens)
 	if err != nil {
