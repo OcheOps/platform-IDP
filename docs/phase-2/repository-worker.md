@@ -49,8 +49,10 @@ Then start the development worker without sourcing the environment file:
 ./scripts/run-repository-worker.sh
 ```
 
-The wizard disables webhooks for this polling worker, requests only the four
-permissions above, and installs for all organization repositories. That scope
+The wizard disables webhooks and requests only repository administration,
+checks read, contents write, pull requests read, commit statuses read,
+workflows write, and organization members read. It installs for all
+organization repositories. That scope
 lets the worker manage repositories created later, but also grants it access to
 existing repositories, so a dedicated organization is recommended. The wizard
 never writes the private key into an environment file and refuses symlinked or
@@ -75,3 +77,11 @@ authenticates to AWS through the configured OIDC role; validates that a request
 changes exactly one request/estimate pair; and deletes the potentially
 sensitive binary plan after writing only its digest and resource-action counts
 to the job summary. The generated module uses AWS provider 6.61.0.
+
+The workflow publishes the SHA-256 digest of canonical `tofu show -json`
+output as a commit status on the exact pull-request head. The worker accepts
+that digest only when the GitHub Actions `build` check on the same head has
+completed successfully. It then persists the head SHA and plan digest, appends
+a `plan.completed` audit event, and moves the request to `awaiting_approval`.
+Failed or mismatched checks enter `plan_failed`; absent or running checks remain
+in `planning`.

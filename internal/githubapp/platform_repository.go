@@ -125,12 +125,13 @@ on:
 permissions:
   contents: read
   id-token: write
+  statuses: write
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with: { fetch-depth: 0, persist-credentials: false }
+        with: { fetch-depth: 0, persist-credentials: false, ref: ${{ github.event.pull_request.head.sha }} }
       - name: Validate request scope and policy
         run: python3 scripts/validate.py "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
       - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
@@ -140,11 +141,16 @@ jobs:
       - name: OpenTofu format and initialize
         run: tofu -chdir=infrastructure fmt -check && tofu -chdir=infrastructure init -input=false -backend-config=../backend.hcl
       - name: Create reviewed plan
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           umask 077
           tofu -chdir=infrastructure plan -input=false -lock-timeout=5m -out="$RUNNER_TEMP/service.tfplan"
-          digest="$(sha256sum "$RUNNER_TEMP/service.tfplan" | cut -d' ' -f1)"
+		  tofu -chdir=infrastructure show -json "$RUNNER_TEMP/service.tfplan" | jq -S -c . > "$RUNNER_TEMP/service-plan.json"
+		  digest="$(sha256sum "$RUNNER_TEMP/service-plan.json" | cut -d' ' -f1)"
 		  printf 'Plan digest: sha256:%s\n' "$digest" >> "$GITHUB_STEP_SUMMARY"
-          tofu -chdir=infrastructure show -json "$RUNNER_TEMP/service.tfplan" | jq -r '[.resource_changes[]?.change.actions | join("/")] | group_by(.) | map({action: .[0], count: length})' >> "$GITHUB_STEP_SUMMARY"
-          rm -f "$RUNNER_TEMP/service.tfplan"
+		  jq -r '[.resource_changes[]?.change.actions | join("/")] | group_by(.) | map({action: .[0], count: length})' "$RUNNER_TEMP/service-plan.json" >> "$GITHUB_STEP_SUMMARY"
+		  payload="$(jq -n --arg context "platform/plan/sha256:$digest" --arg url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" '{state:"success",context:$context,description:"Canonical OpenTofu plan is ready",target_url:$url}')"
+		  curl --fail-with-body --silent --show-error --request POST --header "Authorization: Bearer $GITHUB_TOKEN" --header "Accept: application/vnd.github+json" --header "X-GitHub-Api-Version: 2026-03-10" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" --data "$payload"
+		  rm -f "$RUNNER_TEMP/service.tfplan" "$RUNNER_TEMP/service-plan.json"
 `

@@ -53,7 +53,7 @@ func TestInstallationTokenSourceSignsJWTAndCachesShortLivedToken(t *testing.T) {
 		if err := rsa.VerifyPKCS1v15(&key.PublicKey, crypto.SHA256, digest[:], signature); err != nil {
 			t.Errorf("invalid JWT signature: %v", err)
 		}
-		writeJSON(w, 201, map[string]any{"token": "ghs_example_token", "expires_at": now.Add(time.Hour).Format(time.RFC3339), "permissions": map[string]string{"administration": "write", "contents": "write", "members": "read", "workflows": "write"}})
+		writeJSON(w, 201, map[string]any{"token": "ghs_example_token", "expires_at": now.Add(time.Hour).Format(time.RFC3339), "permissions": expectedPermissions()})
 	}))
 	server.Listener = listener
 	server.Start()
@@ -93,11 +93,11 @@ func TestValidateInstallationChecksOrganizationScopeAndPermissions(t *testing.T)
 				"account":              map[string]string{"login": "OcheOps"},
 				"target_type":          "Organization",
 				"repository_selection": "all",
-				"permissions":          map[string]string{"administration": "write", "contents": "write", "members": "read", "metadata": "read", "workflows": "write"},
+				"permissions":          withMetadata(expectedPermissions()),
 				"suspended_at":         nil,
 			})
 		case "/app/installations/99/access_tokens":
-			writeJSON(w, http.StatusCreated, map[string]any{"token": "ghs_example_token", "expires_at": now.Add(time.Hour).Format(time.RFC3339), "permissions": map[string]string{"administration": "write", "contents": "write", "members": "read", "workflows": "write"}})
+			writeJSON(w, http.StatusCreated, map[string]any{"token": "ghs_example_token", "expires_at": now.Add(time.Hour).Format(time.RFC3339), "permissions": expectedPermissions()})
 		default:
 			http.NotFound(w, r)
 		}
@@ -109,6 +109,17 @@ func TestValidateInstallationChecksOrganizationScopeAndPermissions(t *testing.T)
 	if err := githubapp.ValidateInstallation(context.Background(), config, "ocheops"); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func expectedPermissions() map[string]string {
+	return map[string]string{"administration": "write", "checks": "read", "contents": "write", "members": "read", "pull_requests": "read", "statuses": "read", "workflows": "write"}
+}
+func withMetadata(value map[string]string) map[string]string {
+	result := map[string]string{"metadata": "read"}
+	for key, access := range value {
+		result[key] = access
+	}
+	return result
 }
 
 func TestInstallationTokenSourceRejectsNonNumericAppID(t *testing.T) {

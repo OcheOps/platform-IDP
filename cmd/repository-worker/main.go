@@ -17,6 +17,7 @@ import (
 	"github.com/OcheOps/platform-IDP/internal/bootstrap"
 	"github.com/OcheOps/platform-IDP/internal/configworker"
 	"github.com/OcheOps/platform-IDP/internal/githubapp"
+	"github.com/OcheOps/platform-IDP/internal/planworker"
 	"github.com/OcheOps/platform-IDP/internal/repositoryworker"
 )
 
@@ -71,13 +72,16 @@ func run(args []string) error {
 		LockTable: installation.InstallationID + "-tofu-locks", BaseDomain: installation.DNS.Domain,
 	})
 	configWorker := configworker.New(configStore, github)
+	planStore := planworker.NewFileStore(valueOrDefault("GENERATED_DIRECTORY", ".platform-data"), installation.GitHub.Organization, valueOrDefault("PLATFORM_CONFIG_REPOSITORY", "platform-config"))
+	planWorker := planworker.New(planStore, github)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	interval := 30 * time.Second
 	for {
 		repositoryErr := worker.Reconcile(ctx)
 		configErr := configWorker.Reconcile(ctx)
-		if errors.Is(repositoryErr, context.Canceled) || errors.Is(configErr, context.Canceled) {
+		planErr := planWorker.Reconcile(ctx)
+		if errors.Is(repositoryErr, context.Canceled) || errors.Is(configErr, context.Canceled) || errors.Is(planErr, context.Canceled) {
 			return nil
 		}
 		if repositoryErr != nil && !errors.Is(repositoryErr, repositoryworker.ErrNoWork) {
@@ -86,7 +90,10 @@ func run(args []string) error {
 		if configErr != nil && !errors.Is(configErr, configworker.ErrNoWork) {
 			slog.Error("platform-config reconciliation failed", "error", configErr)
 		}
-		if repositoryErr == nil || configErr == nil {
+		if planErr != nil && !errors.Is(planErr, planworker.ErrNoWork) {
+			slog.Error("plan reconciliation failed", "error", planErr)
+		}
+		if repositoryErr == nil || configErr == nil || planErr == nil {
 			continue
 		}
 		timer := time.NewTimer(interval)
