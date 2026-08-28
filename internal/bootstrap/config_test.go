@@ -14,7 +14,7 @@ func validConfig() Config {
 	config := DefaultConfig()
 	config.InstallationID = "acme-platform"
 	config.AWS = AWSConfig{AccountID: "123456789012", Region: "eu-west-1", Profile: "platform-admin"}
-	config.GitHub = GitHubConfig{Organization: "acme"}
+	config.GitHub = GitHubConfig{Organization: "acme", EngineeringOwnerTeam: "engineering-owners", PlatformOwnerTeam: "platform-owners"}
 	config.DNS = DNSConfig{Provider: "route53", ZoneID: "Z123", Domain: "acme.example", ACMEEmail: "platform@acme.example"}
 	config.Cluster.KubernetesVersion = "1.35"
 	config.Cluster.PublicAccessCIDRs = []string{"198.51.100.10/32"}
@@ -31,6 +31,14 @@ func TestConfigValidation(t *testing.T) {
 	config.Cluster.MaximumNodes = 2
 	if err := config.Validate(); err == nil || !strings.Contains(err.Error(), "minimumNodes") {
 		t.Fatalf("expected node bounds error, got %v", err)
+	}
+}
+
+func TestConfigRequiresDistinctApprovalTeams(t *testing.T) {
+	config := validConfig()
+	config.GitHub.PlatformOwnerTeam = config.GitHub.EngineeringOwnerTeam
+	if err := config.Validate(); err == nil || !strings.Contains(err.Error(), "distinct") {
+		t.Fatalf("expected identical approval teams to be rejected, got %v", err)
 	}
 }
 

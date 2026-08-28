@@ -15,6 +15,7 @@ import (
 )
 
 const configRepositoryDescription = "Platform IDP desired state (schema v1)"
+const configRulesetName = "platform-config-protection"
 
 var configServicePattern = regexp.MustCompile(`^[a-z](?:[a-z0-9-]{0,38}[a-z0-9])?$`)
 var requestIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
@@ -24,6 +25,9 @@ func (client *Client) EnsureChange(ctx context.Context, work configworker.Work) 
 		return "", errors.New("platform-config work identity is invalid")
 	}
 	if err := client.ensureConfigRepository(ctx, work); err != nil {
+		return "", err
+	}
+	if err := client.ensureConfigPolicy(ctx, work); err != nil {
 		return "", err
 	}
 	var branch gitRef
@@ -251,4 +255,73 @@ func verifyConfigPull(found pullRequest, work configworker.Work, headSHA string)
 }
 func configRepoPath(work configworker.Work) string {
 	return "/repos/" + escape(work.Organization) + "/" + escape(work.Repository)
+}
+
+func (client *Client) ensureConfigPolicy(ctx context.Context, work configworker.Work) error {
+	if _, err := client.request(ctx, http.MethodPatch, configRepoPath(work), map[string]any{"private": true, "default_branch": "main", "delete_branch_on_merge": true, "allow_squash_merge": true, "allow_merge_commit": false, "allow_rebase_merge": false}, nil, http.StatusOK); err != nil {
+		return err
+	}
+	var existing []struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+	}
+	if _, err := client.request(ctx, http.MethodGet, configRepoPath(work)+"/rulesets", nil, &existing, http.StatusOK); err != nil {
+		return err
+	}
+	for _, item := range existing {
+		if item.Name != configRulesetName {
+			continue
+		}
+		var detail ruleset
+		if _, err := client.request(ctx, http.MethodGet, fmt.Sprintf("%s/rulesets/%d", configRepoPath(work), item.ID), nil, &detail, http.StatusOK); err != nil {
+			return err
+		}
+		if configRulesetMatches(detail) {
+			return nil
+		}
+		_, err := client.request(ctx, http.MethodPut, fmt.Sprintf("%s/rulesets/%d", configRepoPath(work), item.ID), configRuleset(), nil, http.StatusOK)
+		return err
+	}
+	_, err := client.request(ctx, http.MethodPost, configRepoPath(work)+"/rulesets", configRuleset(), nil, http.StatusCreated)
+	return err
+}
+func configRuleset() map[string]any {
+	return map[string]any{
+		"name": configRulesetName, "target": "branch", "enforcement": "active",
+		"conditions": map[string]any{"ref_name": map[string]any{"include": []string{"refs/heads/main"}, "exclude": []string{}}},
+		"rules": []map[string]any{
+			{"type": "deletion"},
+			{"type": "non_fast_forward"},
+			{"type": "required_linear_history"},
+			{"type": "required_status_checks", "parameters": map[string]any{"strict_required_status_checks_policy": true, "required_status_checks": []map[string]string{{"context": "build"}, {"context": "platform/approvals"}}}},
+			{"type": "pull_request", "parameters": map[string]any{"required_approving_review_count": 2, "dismiss_stale_reviews_on_push": true, "require_code_owner_review": false, "require_last_push_approval": true, "required_review_thread_resolution": true}},
+		},
+	}
+}
+func configRulesetMatches(value ruleset) bool {
+	if value.Name != configRulesetName || value.Target != "branch" || value.Enforcement != "active" || len(value.BypassActors) != 0 || len(value.Conditions.RefName.Include) != 1 || value.Conditions.RefName.Include[0] != "refs/heads/main" || len(value.Conditions.RefName.Exclude) != 0 {
+		return false
+	}
+	types := map[string]bool{}
+	var checks, pull map[string]any
+	for _, rule := range value.Rules {
+		types[rule.Type] = true
+		if rule.Type == "required_status_checks" {
+			checks = rule.Parameters
+		}
+		if rule.Type == "pull_request" {
+			pull = rule.Parameters
+		}
+	}
+	required, ok := checks["required_status_checks"].([]any)
+	contexts := map[string]bool{}
+	if ok {
+		for _, raw := range required {
+			if item, ok := raw.(map[string]any); ok {
+				context, _ := item["context"].(string)
+				contexts[context] = true
+			}
+		}
+	}
+	return len(value.Rules) == 5 && types["deletion"] && types["non_fast_forward"] && types["required_linear_history"] && types["required_status_checks"] && types["pull_request"] && len(contexts) == 2 && contexts["build"] && contexts["platform/approvals"] && truth(checks["strict_required_status_checks_policy"]) && number(pull["required_approving_review_count"]) == 2 && truth(pull["dismiss_stale_reviews_on_push"]) && !truth(pull["require_code_owner_review"]) && truth(pull["require_last_push_approval"]) && truth(pull["required_review_thread_resolution"])
 }

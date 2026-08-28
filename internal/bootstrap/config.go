@@ -29,7 +29,9 @@ type AWSConfig struct {
 }
 
 type GitHubConfig struct {
-	Organization string `json:"organization"`
+	Organization         string `json:"organization"`
+	EngineeringOwnerTeam string `json:"engineeringOwnerTeam"`
+	PlatformOwnerTeam    string `json:"platformOwnerTeam"`
 }
 
 type DNSConfig struct {
@@ -61,6 +63,7 @@ var (
 
 func DefaultConfig() Config {
 	return Config{
+		GitHub:  GitHubConfig{EngineeringOwnerTeam: "engineering-owners", PlatformOwnerTeam: "platform-owners"},
 		Network: NetworkConfig{VPCCIDR: "10.42.0.0/16"},
 		Cluster: ClusterConfig{
 			NodeInstanceTypes: []string{"m7i.large"},
@@ -83,6 +86,11 @@ func (c Config) Validate() error {
 	}
 	if c.GitHub.Organization == "" {
 		problems = append(problems, "github.organization is required")
+	}
+	if !idPattern.MatchString(c.GitHub.EngineeringOwnerTeam) || !idPattern.MatchString(c.GitHub.PlatformOwnerTeam) {
+		problems = append(problems, "github owner teams must be 3-32 character lowercase team slugs")
+	} else if c.GitHub.EngineeringOwnerTeam == c.GitHub.PlatformOwnerTeam {
+		problems = append(problems, "github engineering and platform owner teams must be distinct")
 	}
 	if c.DNS.Provider != "route53" && c.DNS.Provider != "cloudflare" {
 		problems = append(problems, "dns.provider must be route53 or cloudflare")

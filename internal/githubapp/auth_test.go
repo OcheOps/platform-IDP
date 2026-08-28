@@ -112,7 +112,7 @@ func TestValidateInstallationChecksOrganizationScopeAndPermissions(t *testing.T)
 }
 
 func expectedPermissions() map[string]string {
-	return map[string]string{"administration": "write", "checks": "read", "contents": "write", "members": "read", "pull_requests": "read", "statuses": "read", "workflows": "write"}
+	return map[string]string{"administration": "write", "checks": "read", "contents": "write", "members": "read", "pull_requests": "read", "statuses": "write", "workflows": "write"}
 }
 func withMetadata(value map[string]string) map[string]string {
 	result := map[string]string{"metadata": "read"}

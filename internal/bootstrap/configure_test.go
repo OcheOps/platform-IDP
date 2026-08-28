@@ -15,6 +15,8 @@ func TestConfigureCollectsRoute53ConfigAndUsesDefaults(t *testing.T) {
 		"eu-west-1",
 		"platform-admin",
 		"acme",
+		"",
+		"",
 		"route53",
 		"Z123",
 		"acme.example",
@@ -44,7 +46,7 @@ func TestConfigureCollectsRoute53ConfigAndUsesDefaults(t *testing.T) {
 
 func TestConfigureCloudflareCollectsOnlySecretReference(t *testing.T) {
 	input := strings.NewReader(strings.Join([]string{
-		"acme-platform", "123456789012", "eu-west-1", "", "acme",
+		"acme-platform", "123456789012", "eu-west-1", "", "acme", "", "",
 		"cloudflare", "zone-id", "acme.example", "platform@acme.example",
 		"cloudflare-api-token", "1.35", "198.51.100.10/32", "", "", "",
 	}, "\n") + "\n")

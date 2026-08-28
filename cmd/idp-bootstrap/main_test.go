@@ -14,6 +14,7 @@ func TestConfigureCommandWritesConfigAndRefusesExistingTargetBeforePrompting(t *
 	path := filepath.Join(directory, "config.json")
 	answers := strings.Join([]string{
 		"acme-platform", "123456789012", "eu-west-1", "platform-admin", "acme",
+		"", "",
 		"route53", "Z123", "acme.example", "platform@acme.example", "1.35",
 		"198.51.100.10/32", "", "", "",
 	}, "\n") + "\n"

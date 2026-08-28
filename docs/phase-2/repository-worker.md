@@ -50,7 +50,7 @@ Then start the development worker without sourcing the environment file:
 ```
 
 The wizard disables webhooks and requests only repository administration,
-checks read, contents write, pull requests read, commit statuses read,
+checks read, contents write, pull requests read, commit statuses write,
 workflows write, and organization members read. It installs for all
 organization repositories. That scope
 lets the worker manage repositories created later, but also grants it access to
@@ -85,3 +85,22 @@ completed successfully. It then persists the head SHA and plan digest, appends
 a `plan.completed` audit event, and moves the request to `awaiting_approval`.
 Failed or mismatched checks enter `plan_failed`; absent or running checks remain
 in `planning`.
+
+Approval roles are mapped to two distinct GitHub teams in `.idp/config.json`:
+`engineeringOwnerTeam` and `platformOwnerTeam`. The guided bootstrap defaults
+these to `engineering-owners` and `platform-owners`. The worker will not start
+with the same team configured for both roles.
+
+While a request is `awaiting_approval`, the worker evaluates GitHub reviews
+against the exact pull-request head used for the stored plan digest. It ignores
+the requester, accepts only each reviewer's latest review on that head, and
+rechecks active GitHub team membership live. Approval requires two different
+people: one current engineering owner and one current platform owner. A person
+who belongs to both teams can fill only one role for a request.
+
+After those checks pass, the worker publishes the `platform/approvals` success
+status on the exact head and records both approvers in the request and audit
+log together with the head SHA and plan digest. The `platform-config` main
+branch ruleset requires `build`, `platform/approvals`, two approving reviews,
+stale-review dismissal, last-push approval, resolved review threads, and no
+bypass actors before merge.

@@ -25,6 +25,8 @@ func Configure(input io.Reader, output io.Writer) (Config, error) {
 	config.AWS.Region = prompt(scanner, output, "AWS region", "")
 	config.AWS.Profile = prompt(scanner, output, "AWS CLI profile (blank uses the active environment)", "")
 	config.GitHub.Organization = prompt(scanner, output, "GitHub organization", "")
+	config.GitHub.EngineeringOwnerTeam = prompt(scanner, output, "Engineering owner team", config.GitHub.EngineeringOwnerTeam)
+	config.GitHub.PlatformOwnerTeam = prompt(scanner, output, "Platform owner team", config.GitHub.PlatformOwnerTeam)
 	config.DNS.Provider = strings.ToLower(prompt(scanner, output, "DNS provider (route53/cloudflare)", "route53"))
 	config.DNS.ZoneID = prompt(scanner, output, "DNS zone ID", "")
 	config.DNS.Domain = strings.ToLower(prompt(scanner, output, "Base domain", ""))

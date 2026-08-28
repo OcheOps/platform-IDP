@@ -133,6 +133,7 @@ func TestClientCreatesIdempotentPlatformConfigPullRequest(t *testing.T) {
 	const requestID = "f4d26f61-ef7d-4bd9-9568-ae621d91187f"
 	branchCreated := false
 	pullCreated := false
+	configRulesetCreated := false
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("local HTTP sockets unavailable: %v", err)
@@ -141,6 +142,19 @@ func TestClientCreatesIdempotentPlatformConfigPullRequest(t *testing.T) {
 		switch r.Method + " " + r.URL.Path {
 		case "GET /repos/acme/platform-config":
 			writeJSON(w, 200, map[string]any{"id": 88, "full_name": "acme/platform-config", "private": true, "description": "Platform IDP desired state (schema v1)"})
+		case "PATCH /repos/acme/platform-config":
+			writeJSON(w, 200, map[string]any{})
+		case "GET /repos/acme/platform-config/rulesets":
+			if configRulesetCreated {
+				writeJSON(w, 200, []any{map[string]any{"id": 9, "name": "platform-config-protection"}})
+			} else {
+				writeJSON(w, 200, []any{})
+			}
+		case "POST /repos/acme/platform-config/rulesets":
+			configRulesetCreated = true
+			writeJSON(w, 201, map[string]any{"id": 9})
+		case "GET /repos/acme/platform-config/rulesets/9":
+			writeJSON(w, 200, configRulesetResponse())
 		case "GET /repos/acme/platform-config/git/ref/heads/platform%2Frequest-f4d26f61-ef7d-4bd9-9568-ae621d91187f":
 			if branchCreated {
 				writeJSON(w, 200, map[string]any{"object": map[string]string{"sha": "request-head"}})
@@ -208,6 +222,19 @@ func encodedContent(value string) map[string]string {
 }
 func configPullResponse() map[string]any {
 	return map[string]any{"number": 17, "state": "open", "title": "Provision orders-api in staging", "body": "Platform request `f4d26f61-ef7d-4bd9-9568-ae621d91187f`. Estimate digest: `sha256:abc`", "head": map[string]string{"ref": "platform/request-f4d26f61-ef7d-4bd9-9568-ae621d91187f", "sha": "request-head"}, "base": map[string]string{"ref": "main"}}
+}
+func configRulesetResponse() map[string]any {
+	return map[string]any{
+		"id": 9, "name": "platform-config-protection", "target": "branch", "enforcement": "active", "bypass_actors": []any{},
+		"conditions": map[string]any{"ref_name": map[string]any{"include": []string{"refs/heads/main"}, "exclude": []string{}}},
+		"rules": []map[string]any{
+			{"type": "deletion"},
+			{"type": "non_fast_forward"},
+			{"type": "required_linear_history"},
+			{"type": "required_status_checks", "parameters": map[string]any{"strict_required_status_checks_policy": true, "required_status_checks": []map[string]string{{"context": "build"}, {"context": "platform/approvals"}}}},
+			{"type": "pull_request", "parameters": map[string]any{"required_approving_review_count": 2, "dismiss_stale_reviews_on_push": true, "require_code_owner_review": false, "require_last_push_approval": true, "required_review_thread_resolution": true}},
+		},
+	}
 }
 
 func repositoryResponse() map[string]any {
