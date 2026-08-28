@@ -22,7 +22,9 @@ and validation failures wait for operator or desired-state changes.
 
 The live adapter signs RS256 GitHub App JWTs and exchanges them for cached,
 short-lived installation tokens. It uses the versioned REST API and requests
-only Administration (write), Contents (write), and Members (read) permissions.
+only Administration (write), Contents (write), Workflows (write), and Members
+(read) permissions. Workflows write is required to initialize the pinned
+planning workflow in the central configuration repository.
 It never accepts a personal access token.
 
 `cmd/repository-worker` loads the GitHub organization from `.idp/config.json`.
@@ -47,7 +49,7 @@ Then start the development worker without sourcing the environment file:
 ./scripts/run-repository-worker.sh
 ```
 
-The wizard disables webhooks for this polling worker, requests only the three
+The wizard disables webhooks for this polling worker, requests only the four
 permissions above, and installs for all organization repositories. That scope
 lets the worker manage repositories created later, but also grants it access to
 existing repositories, so a dedicated organization is recommended. The wizard
@@ -64,3 +66,12 @@ and opens one pull request. Existing branches and pull requests are reused only
 when their identities, head SHA, and committed bytes match; divergent content
 is never overwritten. Once verified, the service request enters `planning`.
 `PLATFORM_CONFIG_REPOSITORY` optionally overrides the repository name.
+
+On first use, the worker initializes that repository with an installation-bound
+S3/DynamoDB backend, a real OpenTofu service module for ECR and database-secret
+containers, and a pull-request planning workflow. The workflow pins checkout,
+AWS credential, and OpenTofu setup actions by commit; uses OpenTofu 1.12.6;
+authenticates to AWS through the configured OIDC role; validates that a request
+changes exactly one request/estimate pair; and deletes the potentially
+sensitive binary plan after writing only its digest and resource-action counts
+to the job summary. The generated module uses AWS provider 6.61.0.

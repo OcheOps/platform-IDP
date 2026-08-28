@@ -22,7 +22,7 @@ func TestFileStoreSelectsRepositoryReadyRequestAndPersistsPlanningIdentity(t *te
 	if err := os.WriteFile(filepath.Join(root, "requests", id+".json"), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store := configworker.NewFileStore(root, "acme", "platform-config")
+	store := configworker.NewFileStore(root, "acme", "platform-config", configworker.Platform{})
 	work, err := store.Next(context.Background())
 	if err != nil {
 		t.Fatal(err)

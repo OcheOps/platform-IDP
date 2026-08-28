@@ -12,10 +12,9 @@ import (
 	"strings"
 
 	"github.com/OcheOps/platform-IDP/internal/configworker"
-	"github.com/OcheOps/platform-IDP/internal/repositoryworker"
 )
 
-const configRepositoryDescription = "Platform IDP desired state"
+const configRepositoryDescription = "Platform IDP desired state (schema v1)"
 
 var configServicePattern = regexp.MustCompile(`^[a-z](?:[a-z0-9-]{0,38}[a-z0-9])?$`)
 var requestIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
@@ -24,8 +23,7 @@ func (client *Client) EnsureChange(ctx context.Context, work configworker.Work) 
 	if !configServicePattern.MatchString(work.ServiceName) || !requestIDPattern.MatchString(work.RequestID) || work.Branch != "platform/request-"+work.RequestID || strings.TrimSpace(work.Organization) == "" || strings.TrimSpace(work.Repository) == "" {
 		return "", errors.New("platform-config work identity is invalid")
 	}
-	created, err := client.ensureConfigRepository(ctx, work)
-	if err != nil {
+	if err := client.ensureConfigRepository(ctx, work); err != nil {
 		return "", err
 	}
 	var branch gitRef
@@ -45,9 +43,6 @@ func (client *Client) EnsureChange(ctx context.Context, work configworker.Work) 
 	}
 	var main gitRef
 	if _, err := client.request(ctx, http.MethodGet, configRepoPath(work)+"/git/ref/heads/main", nil, &main, http.StatusOK); err != nil {
-		if created {
-			return "", repositoryworker.Transient(err)
-		}
 		return "", err
 	}
 	var base struct {
@@ -171,23 +166,24 @@ type pullRequest struct {
 	} `json:"base"`
 }
 
-func (client *Client) ensureConfigRepository(ctx context.Context, work configworker.Work) (bool, error) {
+func (client *Client) ensureConfigRepository(ctx context.Context, work configworker.Work) error {
 	var found repository
 	status, err := client.request(ctx, http.MethodGet, configRepoPath(work), nil, &found, http.StatusOK, http.StatusNotFound)
 	if err != nil {
-		return false, err
+		return err
 	}
-	created := false
 	if status == http.StatusNotFound {
-		if _, err := client.request(ctx, http.MethodPost, "/orgs/"+escape(work.Organization)+"/repos", map[string]any{"name": work.Repository, "description": configRepositoryDescription, "private": true, "auto_init": true, "has_issues": true, "has_projects": false, "has_wiki": false}, &found, http.StatusCreated); err != nil {
-			return false, err
+		if _, err := client.request(ctx, http.MethodPost, "/orgs/"+escape(work.Organization)+"/repos", map[string]any{"name": work.Repository, "description": configRepositoryDescription, "private": true, "auto_init": false, "has_issues": true, "has_projects": false, "has_wiki": false}, &found, http.StatusCreated); err != nil {
+			return err
 		}
-		created = true
+		if err := client.initializeConfigRepository(ctx, work); err != nil {
+			return err
+		}
 	}
 	if found.ID <= 0 || !found.Private || !strings.EqualFold(found.FullName, work.Organization+"/"+work.Repository) || found.Description != configRepositoryDescription {
-		return false, errors.New("platform-config repository identity does not match platform policy")
+		return errors.New("platform-config repository identity does not match platform policy")
 	}
-	return created, nil
+	return nil
 }
 func (client *Client) verifyConfigFiles(ctx context.Context, work configworker.Work, expected map[string][]byte) error {
 	for path, want := range expected {

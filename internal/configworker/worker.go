@@ -12,6 +12,11 @@ type Work struct {
 	RequestID, Organization, ServiceName, Repository, Branch string
 	Request, Estimate                                        []byte
 	PullRequestNumber                                        int64
+	Platform                                                 Platform
+}
+
+type Platform struct {
+	InstallationID, AWSAccountID, AWSRegion, AWSRoleARN, StateBucket, LockTable, BaseDomain string
 }
 
 type Store interface {

@@ -13,10 +13,13 @@ import (
 	"time"
 )
 
-type FileStore struct{ root, organization, repository string }
+type FileStore struct {
+	root, organization, repository string
+	platform                       Platform
+}
 
-func NewFileStore(root, organization, repository string) *FileStore {
-	return &FileStore{root: root, organization: organization, repository: repository}
+func NewFileStore(root, organization, repository string, platform Platform) *FileStore {
+	return &FileStore{root: root, organization: organization, repository: repository, platform: platform}
 }
 
 func (store *FileStore) Next(ctx context.Context) (Work, error) {
@@ -61,7 +64,7 @@ func (store *FileStore) Next(ctx context.Context) (Work, error) {
 		if requestID == "" || service == "" || len(record["request"]) == 0 || len(record["costEstimate"]) == 0 {
 			return Work{}, errors.New("config work record is incomplete")
 		}
-		return Work{RequestID: requestID, Organization: store.organization, ServiceName: service, Repository: store.repository, Branch: "platform/request-" + requestID, Request: append([]byte(nil), record["request"]...), Estimate: append([]byte(nil), record["costEstimate"]...), PullRequestNumber: integerValue(record["configPullRequestNumber"])}, nil
+		return Work{RequestID: requestID, Organization: store.organization, ServiceName: service, Repository: store.repository, Branch: "platform/request-" + requestID, Request: append([]byte(nil), record["request"]...), Estimate: append([]byte(nil), record["costEstimate"]...), PullRequestNumber: integerValue(record["configPullRequestNumber"]), Platform: store.platform}, nil
 	}
 	return Work{}, ErrNoWork
 }

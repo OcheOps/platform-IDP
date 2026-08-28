@@ -140,7 +140,7 @@ func TestClientCreatesIdempotentPlatformConfigPullRequest(t *testing.T) {
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method + " " + r.URL.Path {
 		case "GET /repos/acme/platform-config":
-			writeJSON(w, 200, map[string]any{"id": 88, "full_name": "acme/platform-config", "private": true, "description": "Platform IDP desired state"})
+			writeJSON(w, 200, map[string]any{"id": 88, "full_name": "acme/platform-config", "private": true, "description": "Platform IDP desired state (schema v1)"})
 		case "GET /repos/acme/platform-config/git/ref/heads/platform%2Frequest-f4d26f61-ef7d-4bd9-9568-ae621d91187f":
 			if branchCreated {
 				writeJSON(w, 200, map[string]any{"object": map[string]string{"sha": "request-head"}})

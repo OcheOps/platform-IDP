@@ -65,7 +65,11 @@ func run(args []string) error {
 	}
 	store := repositoryworker.NewFileStore(valueOrDefault("GENERATED_DIRECTORY", ".platform-data"), installation.GitHub.Organization)
 	worker := repositoryworker.New(store, github)
-	configStore := configworker.NewFileStore(valueOrDefault("GENERATED_DIRECTORY", ".platform-data"), installation.GitHub.Organization, valueOrDefault("PLATFORM_CONFIG_REPOSITORY", "platform-config"))
+	configStore := configworker.NewFileStore(valueOrDefault("GENERATED_DIRECTORY", ".platform-data"), installation.GitHub.Organization, valueOrDefault("PLATFORM_CONFIG_REPOSITORY", "platform-config"), configworker.Platform{
+		InstallationID: installation.InstallationID, AWSAccountID: installation.AWS.AccountID, AWSRegion: installation.AWS.Region,
+		AWSRoleARN: os.Getenv("GITHUB_ACTIONS_ROLE_ARN"), StateBucket: fmt.Sprintf("%s-%s-%s-tofu-state", installation.InstallationID, installation.AWS.AccountID, installation.AWS.Region),
+		LockTable: installation.InstallationID + "-tofu-locks", BaseDomain: installation.DNS.Domain,
+	})
 	configWorker := configworker.New(configStore, github)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

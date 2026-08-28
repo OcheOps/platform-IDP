@@ -40,7 +40,7 @@ type installationTokenSource struct {
 	expiresAt time.Time
 }
 
-var requiredPermissions = map[string]string{"administration": "write", "contents": "write", "members": "read"}
+var requiredPermissions = map[string]string{"administration": "write", "contents": "write", "members": "read", "workflows": "write"}
 
 func NewInstallationTokenSource(config AppConfig) (TokenSource, error) {
 	source, err := newInstallationTokenSource(config)
