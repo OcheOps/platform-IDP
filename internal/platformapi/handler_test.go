@@ -40,12 +40,22 @@ func TestAuthenticatedDeveloperCanCreateGoService(t *testing.T) {
 		RequestState    string `json:"requestState"`
 		RepositoryState string `json:"repositoryState"`
 		ServiceName     string `json:"serviceName"`
+		CostEstimate    struct {
+			Digest             string `json:"digest"`
+			PriceSource        string `json:"priceSource"`
+			IncrementalService struct {
+				AmountCents int64 `json:"amountCents"`
+			} `json:"incrementalService"`
+		} `json:"costEstimate"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
 	if result.RequestID != "f4d26f61-ef7d-4bd9-9568-ae621d91187f" || result.RequestState != "draft" || result.RepositoryState != "repository_creating" || result.ServiceName != "orders-api" {
 		t.Fatalf("unexpected response: %#v", result)
+	}
+	if result.CostEstimate.Digest == "" || result.CostEstimate.PriceSource != "versioned-fallback" || result.CostEstimate.IncrementalService.AmountCents <= 0 {
+		t.Fatalf("missing cost estimate: %#v", result.CostEstimate)
 	}
 	for _, path := range []string{
 		filepath.Join(generated, "repositories", "orders-api", "go.mod"),
@@ -66,7 +76,7 @@ func TestAuthenticatedDeveloperCanCreateGoService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range [][]byte{[]byte(`"capacity"`), []byte(`"preview"`), []byte(`"actor": "ocheops"`), []byte(`"action": "request.created"`)} {
+	for _, expected := range [][]byte{[]byte(`"capacity"`), []byte(`"preview"`), []byte(`"actor": "ocheops"`), []byte(`"action": "request.created"`), []byte(`"costEstimate"`), []byte(`"versioned-fallback"`)} {
 		if !bytes.Contains(record, expected) {
 			t.Errorf("persisted workflow record missing %s", expected)
 		}

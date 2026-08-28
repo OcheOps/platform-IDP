@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/OcheOps/platform-IDP/internal/costs"
 	"github.com/OcheOps/platform-IDP/internal/goldenpath"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -26,6 +27,8 @@ type Config struct {
 	GitHubOrganization, AWSRegion, GitHubActionsRoleARN    string
 	Authenticate                                           func(*http.Request) (string, error)
 	Authorize                                              func(actor, owner string) error
+	CostPrices                                             costs.Prices
+	Now                                                    func() time.Time
 }
 
 type Handler struct {
@@ -63,13 +66,15 @@ type submission struct {
 	AuditEvents     []auditEvent    `json:"auditEvents"`
 	CreatedAt       string          `json:"createdAt"`
 	FailureCode     string          `json:"failureCode,omitempty"`
+	CostEstimate    costs.Estimate  `json:"costEstimate"`
 }
 
 type submissionResponse struct {
-	RequestID       string `json:"requestId"`
-	ServiceName     string `json:"serviceName"`
-	RequestState    string `json:"requestState"`
-	RepositoryState string `json:"repositoryState"`
+	RequestID       string         `json:"requestId"`
+	ServiceName     string         `json:"serviceName"`
+	CostEstimate    costs.Estimate `json:"costEstimate"`
+	RequestState    string         `json:"requestState"`
+	RepositoryState string         `json:"repositoryState"`
 }
 
 type renderMarker struct {
@@ -80,6 +85,12 @@ type renderMarker struct {
 func New(config Config) (*Handler, error) {
 	if config.Authenticate == nil || config.Authorize == nil {
 		return nil, errors.New("authenticate and authorize functions are required")
+	}
+	if config.CostPrices.Version == "" {
+		config.CostPrices = costs.FallbackPrices()
+	}
+	if config.Now == nil {
+		config.Now = time.Now
 	}
 	for name, value := range map[string]string{
 		"schema directory": config.SchemaDirectory, "template directory": config.TemplateDirectory, "generated directory": config.GeneratedDirectory,
@@ -174,7 +185,12 @@ func (handler *Handler) submit(response http.ResponseWriter, desired serviceRequ
 		return
 	}
 
-	now := time.Now().UTC()
+	now := handler.config.Now().UTC()
+	estimate, err := costs.Calculate(costs.Input{Region: handler.config.AWSRegion, Request: canonical, CalculatedAt: now, Prices: handler.config.CostPrices})
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "cost_estimate_failed", "The pre-provision cost estimate could not be calculated.")
+		return
+	}
 	eventID, err := randomUUID()
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "internal_error", "The request could not be processed.")
@@ -183,7 +199,8 @@ func (handler *Handler) submit(response http.ResponseWriter, desired serviceRequ
 	record := submission{
 		RequestID: desired.Metadata.RequestID, ServiceName: desired.Metadata.Name, RequestState: "draft", RepositoryState: "repository_pending",
 		RequestHash: requestHash, Actor: actor, Request: append(json.RawMessage(nil), canonical...), CreatedAt: now.Format(time.RFC3339Nano),
-		AuditEvents: []auditEvent{{ID: eventID, OccurredAt: now.Format(time.RFC3339Nano), Actor: map[string]string{"type": "user", "id": actor}, Action: "request.created", Subject: map[string]string{"type": "request", "id": desired.Metadata.RequestID}, RequestID: desired.Metadata.RequestID, Outcome: "succeeded"}},
+		AuditEvents:  []auditEvent{{ID: eventID, OccurredAt: now.Format(time.RFC3339Nano), Actor: map[string]string{"type": "user", "id": actor}, Action: "request.created", Subject: map[string]string{"type": "request", "id": desired.Metadata.RequestID}, RequestID: desired.Metadata.RequestID, Outcome: "succeeded"}},
+		CostEstimate: estimate,
 	}
 	if err := writeSubmission(recordPath, record); err != nil {
 		writeError(response, http.StatusInternalServerError, "persistence_failed", "The service request could not be persisted.")
@@ -279,7 +296,10 @@ func markerMatches(repositoryPath, requestID, requestHash string) bool {
 }
 
 func responseFor(record submission) submissionResponse {
-	return submissionResponse{record.RequestID, record.ServiceName, record.RequestState, record.RepositoryState}
+	return submissionResponse{
+		RequestID: record.RequestID, ServiceName: record.ServiceName, CostEstimate: record.CostEstimate,
+		RequestState: record.RequestState, RepositoryState: record.RepositoryState,
+	}
 }
 
 func compileServiceRequestSchema(directory string) (*jsonschema.Schema, error) {

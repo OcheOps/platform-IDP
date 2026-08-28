@@ -8,6 +8,16 @@ the canonical JSON Schema, requires the authenticated actor to match
 the complete validated request, actor, initial audit event, and workflow
 metadata under the configured generated-data directory.
 
+Every accepted request receives a versioned pre-provision estimate before any
+repository work begins. The API response and persisted workflow record separate
+the shared platform baseline, incremental monthly service cost, and one-preview
+scenario. They include the region, currency, calculation time, visible
+assumptions, rightsizing flags, fallback-price version, and a digest over the
+request, normalized price table, region, and model version. Changing reviewed
+capacity or pricing therefore invalidates the digest used by later approvals.
+The current adapter deliberately labels its static table as fallback pricing;
+live AWS Price List retrieval remains a later provider adapter.
+
 `requestId` is the idempotency key. Repeating identical content returns the
 existing result; reusing the ID for different content returns `409 Conflict`.
 Rendering ends in `repository_creating`, not `repository_ready`: the latter is
