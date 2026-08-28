@@ -41,3 +41,10 @@ func TestDigestIgnoresJSONFormatting(t *testing.T) {
 		t.Fatal("format-only JSON change invalidated estimate digest")
 	}
 }
+
+func TestCalculateAcceptsEveryContractQuantityForm(t *testing.T) {
+	request := json.RawMessage(`{"spec":{"capacity":{"cpu":"1","memory":"2Gi","minReplicas":1,"maxReplicas":3},"database":{"engine":"none"}}}`)
+	if _, err := costs.Calculate(costs.Input{Region: "eu-west-1", Request: request, CalculatedAt: time.Now(), Prices: costs.FallbackPrices()}); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -55,3 +55,12 @@ never writes the private key into an environment file and refuses symlinked or
 broadly scoped key inputs. Its preflight verifies the organization, installation
 scope, exact effective permissions, credentials, and token exchange without
 creating a repository. Reruns can safely reuse an existing local configuration.
+
+After an application repository becomes `repository_ready`, the same process
+reconciles its central desired-state review. It creates or verifies the private
+`platform-config` repository, writes the canonical request and immutable cost
+estimate to `services/<service>/staging/` on a deterministic request branch,
+and opens one pull request. Existing branches and pull requests are reused only
+when their identities, head SHA, and committed bytes match; divergent content
+is never overwritten. Once verified, the service request enters `planning`.
+`PLATFORM_CONFIG_REPOSITORY` optionally overrides the repository name.

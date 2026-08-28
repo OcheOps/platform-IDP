@@ -152,23 +152,30 @@ func amount(cents int64) MonthlyAmount {
 }
 
 func parseCPU(value string) (int64, error) {
-	if !strings.HasSuffix(value, "m") {
-		return 0, fmt.Errorf("unsupported CPU quantity %q", value)
+	if strings.HasSuffix(value, "m") {
+		result, err := strconv.ParseInt(strings.TrimSuffix(value, "m"), 10, 64)
+		if err != nil || result <= 0 {
+			return 0, fmt.Errorf("invalid CPU quantity %q", value)
+		}
+		return result, nil
 	}
-	result, err := strconv.ParseInt(strings.TrimSuffix(value, "m"), 10, 64)
+	result, err := strconv.ParseInt(value, 10, 64)
 	if err != nil || result <= 0 {
 		return 0, fmt.Errorf("invalid CPU quantity %q", value)
 	}
-	return result, nil
+	return result * 1000, nil
 }
 
 func parseMemory(value string) (int64, error) {
-	if !strings.HasSuffix(value, "Mi") {
+	multiplier, suffix := int64(1), "Mi"
+	if strings.HasSuffix(value, "Gi") {
+		multiplier, suffix = 1024, "Gi"
+	} else if !strings.HasSuffix(value, "Mi") {
 		return 0, fmt.Errorf("unsupported memory quantity %q", value)
 	}
-	result, err := strconv.ParseInt(strings.TrimSuffix(value, "Mi"), 10, 64)
+	result, err := strconv.ParseInt(strings.TrimSuffix(value, suffix), 10, 64)
 	if err != nil || result <= 0 {
 		return 0, fmt.Errorf("invalid memory quantity %q", value)
 	}
-	return result, nil
+	return result * multiplier, nil
 }

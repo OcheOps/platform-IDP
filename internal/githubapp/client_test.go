@@ -2,6 +2,7 @@ package githubapp_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/OcheOps/platform-IDP/internal/configworker"
 	"github.com/OcheOps/platform-IDP/internal/githubapp"
 	"github.com/OcheOps/platform-IDP/internal/repositoryworker"
 )
@@ -125,6 +127,87 @@ func TestClientRejectsInsecureRemoteAPI(t *testing.T) {
 	if _, err := githubapp.NewClient("http://github.example.com", http.DefaultClient, func(context.Context) (string, error) { return "token", nil }); err == nil {
 		t.Fatal("insecure remote GitHub API URL was accepted")
 	}
+}
+
+func TestClientCreatesIdempotentPlatformConfigPullRequest(t *testing.T) {
+	const requestID = "f4d26f61-ef7d-4bd9-9568-ae621d91187f"
+	branchCreated := false
+	pullCreated := false
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("local HTTP sockets unavailable: %v", err)
+	}
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case "GET /repos/acme/platform-config":
+			writeJSON(w, 200, map[string]any{"id": 88, "full_name": "acme/platform-config", "private": true, "description": "Platform IDP desired state"})
+		case "GET /repos/acme/platform-config/git/ref/heads/platform%2Frequest-f4d26f61-ef7d-4bd9-9568-ae621d91187f":
+			if branchCreated {
+				writeJSON(w, 200, map[string]any{"object": map[string]string{"sha": "request-head"}})
+			} else {
+				w.WriteHeader(404)
+			}
+		case "GET /repos/acme/platform-config/git/ref/heads/main":
+			writeJSON(w, 200, map[string]any{"object": map[string]string{"sha": "main-head"}})
+		case "GET /repos/acme/platform-config/git/commits/main-head":
+			writeJSON(w, 200, map[string]any{"tree": map[string]string{"sha": "main-tree"}})
+		case "POST /repos/acme/platform-config/git/trees":
+			writeJSON(w, 201, map[string]string{"sha": "request-tree"})
+		case "POST /repos/acme/platform-config/git/commits":
+			writeJSON(w, 201, map[string]string{"sha": "request-head"})
+		case "POST /repos/acme/platform-config/git/refs":
+			branchCreated = true
+			writeJSON(w, 201, map[string]any{})
+		case "GET /repos/acme/platform-config/contents/services%2Forders-api%2Fstaging%2Frequest.json":
+			writeJSON(w, 200, encodedContent(`{"kind":"ServiceRequest","metadata":{"name":"orders-api","requestId":"f4d26f61-ef7d-4bd9-9568-ae621d91187f"}}`+"\n"))
+		case "GET /repos/acme/platform-config/contents/services%2Forders-api%2Fstaging%2Festimate.json":
+			writeJSON(w, 200, encodedContent(`{"digest":"sha256:abc","incrementalService":{"display":"$10.00"},"previewScenario":{"display":"$1.00"}}`+"\n"))
+		case "GET /repos/acme/platform-config/pulls":
+			if pullCreated {
+				writeJSON(w, 200, []any{configPullResponse()})
+			} else {
+				writeJSON(w, 200, []any{})
+			}
+		case "POST /repos/acme/platform-config/pulls":
+			pullCreated = true
+			writeJSON(w, 201, configPullResponse())
+		case "GET /repos/acme/platform-config/pulls/17":
+			writeJSON(w, 200, configPullResponse())
+		case "GET /repos/acme/platform-config/pulls/17/files":
+			writeJSON(w, 200, []map[string]string{{"filename": "services/orders-api/staging/request.json", "status": "added"}, {"filename": "services/orders-api/staging/estimate.json", "status": "added"}})
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.String())
+			w.WriteHeader(500)
+		}
+	}))
+	server.Listener = listener
+	server.Start()
+	defer server.Close()
+	client, err := githubapp.NewClient(server.URL, server.Client(), func(context.Context) (string, error) { return "token", nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	work := configworker.Work{RequestID: requestID, Organization: "acme", ServiceName: "orders-api", Repository: "platform-config", Branch: "platform/request-" + requestID, Request: []byte(`{"kind":"ServiceRequest","metadata":{"name":"orders-api","requestId":"f4d26f61-ef7d-4bd9-9568-ae621d91187f"}}`), Estimate: []byte(`{"digest":"sha256:abc","incrementalService":{"display":"$10.00"},"previewScenario":{"display":"$1.00"}}`)}
+	for range 2 {
+		sha, err := client.EnsureChange(context.Background(), work)
+		if err != nil || sha != "request-head" {
+			t.Fatalf("change=%q %v", sha, err)
+		}
+		number, err := client.EnsurePullRequest(context.Background(), work, sha)
+		if err != nil || number != 17 {
+			t.Fatalf("pull=%d %v", number, err)
+		}
+		if err := client.VerifyPullRequest(context.Background(), work, number, sha); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func encodedContent(value string) map[string]string {
+	return map[string]string{"encoding": "base64", "content": base64.StdEncoding.EncodeToString([]byte(value))}
+}
+func configPullResponse() map[string]any {
+	return map[string]any{"number": 17, "state": "open", "title": "Provision orders-api in staging", "body": "Platform request `f4d26f61-ef7d-4bd9-9568-ae621d91187f`. Estimate digest: `sha256:abc`", "head": map[string]string{"ref": "platform/request-f4d26f61-ef7d-4bd9-9568-ae621d91187f", "sha": "request-head"}, "base": map[string]string{"ref": "main"}}
 }
 
 func repositoryResponse() map[string]any {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/OcheOps/platform-IDP/internal/bootstrap"
+	"github.com/OcheOps/platform-IDP/internal/configworker"
 	"github.com/OcheOps/platform-IDP/internal/githubapp"
 	"github.com/OcheOps/platform-IDP/internal/repositoryworker"
 )
@@ -64,19 +65,25 @@ func run(args []string) error {
 	}
 	store := repositoryworker.NewFileStore(valueOrDefault("GENERATED_DIRECTORY", ".platform-data"), installation.GitHub.Organization)
 	worker := repositoryworker.New(store, github)
+	configStore := configworker.NewFileStore(valueOrDefault("GENERATED_DIRECTORY", ".platform-data"), installation.GitHub.Organization, valueOrDefault("PLATFORM_CONFIG_REPOSITORY", "platform-config"))
+	configWorker := configworker.New(configStore, github)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	interval := 30 * time.Second
 	for {
-		err := worker.Reconcile(ctx)
-		switch {
-		case err == nil:
-			continue
-		case errors.Is(err, repositoryworker.ErrNoWork):
-		case errors.Is(err, context.Canceled):
+		repositoryErr := worker.Reconcile(ctx)
+		configErr := configWorker.Reconcile(ctx)
+		if errors.Is(repositoryErr, context.Canceled) || errors.Is(configErr, context.Canceled) {
 			return nil
-		default:
-			slog.Error("repository reconciliation failed", "error", err)
+		}
+		if repositoryErr != nil && !errors.Is(repositoryErr, repositoryworker.ErrNoWork) {
+			slog.Error("repository reconciliation failed", "error", repositoryErr)
+		}
+		if configErr != nil && !errors.Is(configErr, configworker.ErrNoWork) {
+			slog.Error("platform-config reconciliation failed", "error", configErr)
+		}
+		if repositoryErr == nil || configErr == nil {
+			continue
 		}
 		timer := time.NewTimer(interval)
 		select {
