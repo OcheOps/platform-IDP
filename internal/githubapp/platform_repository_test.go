@@ -23,6 +23,12 @@ func TestPlatformRepositoryTemplateContainsPinnedPlanAndRealResources(t *testing
 			t.Errorf("workflow missing %q", want)
 		}
 	}
+	applyWorkflow := files[".github/workflows/apply.yaml"]
+	for _, want := range []string{"concurrency:", "platform-config-apply", "actual_digest", `test "$actual_digest" = "$approved_digest"`, `state:"pending"`, "receipt_exists", `change.actions == ["no-op"]`, "tofu -chdir=infrastructure apply", "platform/apply/$approved_digest"} {
+		if !strings.Contains(applyWorkflow, want) {
+			t.Errorf("apply workflow missing %q", want)
+		}
+	}
 	for _, want := range []string{`resource "aws_ecr_repository"`, `resource "aws_secretsmanager_secret"`} {
 		if !strings.Contains(files["infrastructure/main.tf"], want) {
 			t.Errorf("module missing %q", want)

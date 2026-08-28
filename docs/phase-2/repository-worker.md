@@ -104,3 +104,25 @@ log together with the head SHA and plan digest. The `platform-config` main
 branch ruleset requires `build`, `platform/approvals`, two approving reviews,
 stale-review dismissal, last-push approval, resolved review threads, and no
 bypass actors before merge.
+
+Merging an approved configuration pull request triggers a serialized apply
+workflow on `main`. The workflow discovers the single merged pull request and
+its reviewed head, reads the successful plan-digest status from that head, and
+generates a new saved OpenTofu plan against current remote state. It applies
+that saved plan only when its canonical digest exactly matches the approved
+digest. Configuration changes or infrastructure drift therefore fail closed
+and require a new plan and approvals. The workflow publishes
+Before mutation it publishes a pending apply receipt. It publishes
+`platform/apply/<plan-digest>` as successful on the merge commit only after
+`tofu apply` succeeds and removes the local plan files afterward. If status
+publication was interrupted after a successful apply, a rerun may recover the
+receipt only when a fresh plan proves that no resource changes remain.
+
+The apply reconciler independently verifies the merged pull request, original
+head SHA, GitHub Actions `apply` check, merge commit, and apply attestation. It
+then transitions the request through `applying` to `deploying`, recording the
+merge SHA, approved plan digest, canonical environment ID, ECR repository
+identity, and database secret identity. Failed runs enter
+`apply_failed`; rerunning the same GitHub Actions workflow is safe because
+OpenTofu remote state and deterministic resource names make the operation
+convergent.

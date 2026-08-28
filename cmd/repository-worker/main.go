@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/OcheOps/platform-IDP/internal/applyworker"
 	"github.com/OcheOps/platform-IDP/internal/approvalworker"
 	"github.com/OcheOps/platform-IDP/internal/bootstrap"
 	"github.com/OcheOps/platform-IDP/internal/configworker"
@@ -77,6 +78,8 @@ func run(args []string) error {
 	planWorker := planworker.New(planStore, github)
 	approvalStore := approvalworker.NewFileStore(valueOrDefault("GENERATED_DIRECTORY", ".platform-data"), installation.GitHub.Organization, valueOrDefault("PLATFORM_CONFIG_REPOSITORY", "platform-config"), installation.GitHub.EngineeringOwnerTeam, installation.GitHub.PlatformOwnerTeam)
 	approvalWorker := approvalworker.New(approvalStore, github)
+	applyStore := applyworker.NewFileStore(valueOrDefault("GENERATED_DIRECTORY", ".platform-data"), installation.GitHub.Organization, valueOrDefault("PLATFORM_CONFIG_REPOSITORY", "platform-config"), installation.InstallationID, installation.AWS.AccountID, installation.AWS.Region)
+	applyWorker := applyworker.New(applyStore, github)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	interval := 30 * time.Second
@@ -85,7 +88,8 @@ func run(args []string) error {
 		configErr := configWorker.Reconcile(ctx)
 		planErr := planWorker.Reconcile(ctx)
 		approvalErr := approvalWorker.Reconcile(ctx)
-		if errors.Is(repositoryErr, context.Canceled) || errors.Is(configErr, context.Canceled) || errors.Is(planErr, context.Canceled) || errors.Is(approvalErr, context.Canceled) {
+		applyErr := applyWorker.Reconcile(ctx)
+		if errors.Is(repositoryErr, context.Canceled) || errors.Is(configErr, context.Canceled) || errors.Is(planErr, context.Canceled) || errors.Is(approvalErr, context.Canceled) || errors.Is(applyErr, context.Canceled) {
 			return nil
 		}
 		if repositoryErr != nil && !errors.Is(repositoryErr, repositoryworker.ErrNoWork) {
@@ -100,7 +104,10 @@ func run(args []string) error {
 		if approvalErr != nil && !errors.Is(approvalErr, approvalworker.ErrNoWork) {
 			slog.Error("approval reconciliation failed", "error", approvalErr)
 		}
-		if repositoryErr == nil || configErr == nil || planErr == nil || approvalErr == nil {
+		if applyErr != nil && !errors.Is(applyErr, applyworker.ErrNoWork) {
+			slog.Error("apply reconciliation failed", "error", applyErr)
+		}
+		if repositoryErr == nil || configErr == nil || planErr == nil || approvalErr == nil || applyErr == nil {
 			continue
 		}
 		timer := time.NewTimer(interval)
