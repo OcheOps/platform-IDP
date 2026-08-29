@@ -20,6 +20,8 @@ GITHUB_APP_INSTALLATION_ID=""
 GITHUB_APP_PRIVATE_KEY_FILE=""
 INSTALLATION_CONFIG=""
 GENERATED_DIRECTORY=""
+GITHUB_ACTIONS_ROLE_ARN=""
+PLATFORM_CONFIG_REPOSITORY=""
 declare -A SEEN_KEYS=()
 while IFS='=' read -r key value; do
   if [[ "$key" == *$'\r'* || "$value" == *$'\r'* ]]; then
@@ -27,7 +29,7 @@ while IFS='=' read -r key value; do
     exit 1
   fi
   case "$key" in
-    GITHUB_APP_ID|GITHUB_APP_INSTALLATION_ID|GITHUB_APP_PRIVATE_KEY_FILE|INSTALLATION_CONFIG|GENERATED_DIRECTORY)
+    GITHUB_APP_ID|GITHUB_APP_INSTALLATION_ID|GITHUB_APP_PRIVATE_KEY_FILE|INSTALLATION_CONFIG|GENERATED_DIRECTORY|GITHUB_ACTIONS_ROLE_ARN|PLATFORM_CONFIG_REPOSITORY)
       if [[ -n "${SEEN_KEYS[$key]:-}" ]]; then
         printf 'Duplicate %s in GitHub App environment file: %s\n' "$key" "$ENV_FILE" >&2
         exit 1
@@ -42,8 +44,8 @@ while IFS='=' read -r key value; do
   esac
 done < "$ENV_FILE"
 
-if (( ${#SEEN_KEYS[@]} != 5 )); then
-  printf 'GitHub App environment file must contain exactly five settings: %s\n' "$ENV_FILE" >&2
+if (( ${#SEEN_KEYS[@]} < 5 )); then
+  printf 'GitHub App environment file must contain at least five required settings: %s\n' "$ENV_FILE" >&2
   exit 1
 fi
 
@@ -63,4 +65,6 @@ exec env \
   GITHUB_APP_PRIVATE_KEY_FILE="$GITHUB_APP_PRIVATE_KEY_FILE" \
   INSTALLATION_CONFIG="$INSTALLATION_CONFIG" \
   GENERATED_DIRECTORY="$GENERATED_DIRECTORY" \
+  GITHUB_ACTIONS_ROLE_ARN="$GITHUB_ACTIONS_ROLE_ARN" \
+  PLATFORM_CONFIG_REPOSITORY="$PLATFORM_CONFIG_REPOSITORY" \
   go run ./cmd/repository-worker "$@"
