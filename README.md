@@ -32,8 +32,8 @@ The repository contains a working Phase 0 foundation and the first Phase 2 provi
 
 ### Deliberately not finished yet
 
-- Committing rendered GitOps values after apply, Argo CD ApplicationSet installation, and the deployment reconciler.
-- The deployment worker's GitHub adapter, application CI/image publishing wiring, ECR lifecycle, and the shared deployment chart wired into generated GitOps values.
+- Committing rendered GitOps values after apply and the deployment reconciler.
+- Argo CD ApplicationSet installation, Argo CD health reconciliation, ECR lifecycle management, and the shared deployment chart wired into generated GitOps values.
 - DNS/TLS records, External Secrets database credentials, logs, metrics, and catalogue health links for each service.
 - Pull-request preview environments, TTL cleanup, and temporary databases.
 - Node/NestJS, Spring Boot, and Next.js golden paths.
@@ -59,7 +59,7 @@ Service request + cost estimate
    engineering owner + platform owner approval
           │ protected merge
           ▼
-   OpenTofu apply → AWS identities → GitOps desired state (next)
+   OpenTofu apply → AWS identities → GitOps desired state
           │
           ▼
    Argo CD → EKS → service, PostgreSQL, DNS, secrets, metrics and logs
