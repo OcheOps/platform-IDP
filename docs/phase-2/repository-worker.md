@@ -72,7 +72,8 @@ is never overwritten. Once verified, the service request enters `planning`.
 `PLATFORM_CONFIG_REPOSITORY` optionally overrides the repository name.
 
 On first use, the worker initializes that repository with an installation-bound
-S3/DynamoDB backend, a real OpenTofu service module for ECR and database-secret
+S3/DynamoDB backend, a real OpenTofu service module for ECR (including a
+20-image lifecycle policy) and database-secret
 containers, and a pull-request planning workflow. The workflow pins checkout,
 AWS credential, and OpenTofu setup actions by commit; uses OpenTofu 1.12.6;
 authenticates to AWS through the configured OIDC role; validates that a request

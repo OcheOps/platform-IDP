@@ -94,6 +94,11 @@ resource "aws_ecr_repository" "service" {
   encryption_configuration { encryption_type = "AES256" }
   tags = merge(local.tags, { "platform-idp:service" = each.key, "platform-idp:owner" = each.value.metadata.owner, "platform-idp:request-id" = each.value.metadata.requestId })
 }
+resource "aws_ecr_lifecycle_policy" "service" {
+  for_each   = local.requests
+  repository = aws_ecr_repository.service[each.key].name
+  policy     = jsonencode({ rules = [{ rulePriority = 1, description = "Retain the 20 most recent images", selection = { tagStatus = "any", countType = "imageCountMoreThan", countNumber = 20 }, action = { type = "expire" } }] })
+}
 resource "aws_secretsmanager_secret" "database" {
   for_each                = { for name, request in local.requests : name => request if request.spec.database.engine == "postgres" }
   name                    = "platform/${var.installation_id}/${each.key}/staging/database"
