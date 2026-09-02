@@ -102,10 +102,14 @@ func RenderValues(work Work) ([]byte, error) {
 	return append(data, '\n'), nil
 }
 
-func RenderApplicationSet(repositoryURL string) ([]byte, error) {
-	parsed, err := url.Parse(repositoryURL)
+func RenderApplicationSet(configRepositoryURL, chartRepositoryURL string) ([]byte, error) {
+	parsed, err := url.Parse(configRepositoryURL)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
 		return nil, errors.New("ApplicationSet repository URL must be an HTTPS URL without credentials")
+	}
+	chart, err := url.Parse(chartRepositoryURL)
+	if err != nil || chart.Scheme != "https" || chart.Host == "" || chart.User != nil {
+		return nil, errors.New("ApplicationSet chart repository URL must be an HTTPS URL without credentials")
 	}
 	manifest := `apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
@@ -141,5 +145,5 @@ spec:
         syncOptions:
           - CreateNamespace=true
 `
-	return []byte(fmt.Sprintf(manifest, repositoryURL, repositoryURL)), nil
+	return []byte(fmt.Sprintf(manifest, configRepositoryURL, chartRepositoryURL)), nil
 }

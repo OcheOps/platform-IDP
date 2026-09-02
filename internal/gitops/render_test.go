@@ -32,7 +32,7 @@ func TestRenderStagingValuesUsesImmutableImageAndDatabaseSecretReference(t *test
 }
 
 func TestApplicationSetRestrictsDiscoveryToStagingValues(t *testing.T) {
-	data, err := gitops.RenderApplicationSet("https://github.com/acme/platform-config.git")
+	data, err := gitops.RenderApplicationSet("https://github.com/acme/platform-config.git", "https://github.com/acme/platform-idp.git")
 	if err != nil {
 		t.Fatal(err)
 	}
