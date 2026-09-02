@@ -71,6 +71,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      statuses: write
     steps:
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
@@ -93,3 +94,5 @@ jobs:
           docker push "$image"
           digest="$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$GITHUB_SHA" --query 'imageDetails[0].imageDigest' --output text)"
           printf 'Published `%s@%s`\n' "$registry/$ECR_REPOSITORY" "$digest" >> "$GITHUB_STEP_SUMMARY"
+          payload="$(jq -n --arg context "platform/image/$digest" --arg url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" '{state:"success",context:$context,description:"Tested image published to ECR",target_url:$url}')"
+          curl --fail-with-body --silent --show-error --request POST --header "Authorization: Bearer $GITHUB_TOKEN" --header "Accept: application/vnd.github+json" --header "X-GitHub-Api-Version: 2026-03-10" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" --data "$payload"

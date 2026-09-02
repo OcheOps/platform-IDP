@@ -28,11 +28,12 @@ The repository contains a working Phase 0 foundation and the first Phase 2 provi
 - Merge-triggered OpenTofu apply workflow that compares a fresh plan with the approved digest before mutation, publishes an apply attestation, and safely recovers an interrupted status publication.
 - Apply reconciliation with durable state transitions, deterministic resource identities, safe retries, and operation-key audit deduplication.
 - GitOps value rendering for digest-pinned staging releases and a constrained Argo CD ApplicationSet contract.
+- A deployment-worker contract that waits for the tested ECR image digest before creating GitOps desired state.
 
 ### Deliberately not finished yet
 
 - Committing rendered GitOps values after apply, Argo CD ApplicationSet installation, and the deployment reconciler.
-- Application CI/image publishing, ECR lifecycle, and the shared deployment chart wired into generated GitOps values.
+- The deployment worker's GitHub adapter, application CI/image publishing wiring, ECR lifecycle, and the shared deployment chart wired into generated GitOps values.
 - DNS/TLS records, External Secrets database credentials, logs, metrics, and catalogue health links for each service.
 - Pull-request preview environments, TTL cleanup, and temporary databases.
 - Node/NestJS, Spring Boot, and Next.js golden paths.
