@@ -39,7 +39,8 @@ references, never secret values, and rejects non-HTTPS repository URLs or
 mutable image tags. The deployment worker waits for the application CI image
 attestation, commits these files to a deterministic GitOps pull request, and
 verifies the exact values before marking the deployment request ready.
-Installing the ApplicationSet and reconciling Argo CD health remain next.
+Installing the ApplicationSet and wiring authenticated Argo CD health
+observations into request state remain next.
 
 The `templates/go-chi-api` golden path is a buildable reference repository.
 `internal/goldenpath.RenderGoChi` validates every declared input, copies the

@@ -29,11 +29,12 @@ The repository contains a working Phase 0 foundation and the first Phase 2 provi
 - Apply reconciliation with durable state transitions, deterministic resource identities, safe retries, and operation-key audit deduplication.
 - GitOps value rendering for digest-pinned staging releases and a constrained Argo CD ApplicationSet contract.
 - A deployment-worker contract that waits for the tested ECR image digest before creating GitOps desired state.
+- Authenticated Argo CD health observation that reports only synced, healthy, successful applications as ready.
 
 ### Deliberately not finished yet
 
 - Committing rendered GitOps values after apply and the deployment reconciler.
-- Argo CD ApplicationSet installation, Argo CD health reconciliation, ECR lifecycle management, and the shared deployment chart wired into generated GitOps values.
+- Argo CD ApplicationSet installation, wiring Argo health observations into request state, ECR lifecycle management, and the shared deployment chart wired into generated GitOps values.
 - DNS/TLS records, External Secrets database credentials, logs, metrics, and catalogue health links for each service.
 - Pull-request preview environments, TTL cleanup, and temporary databases.
 - Node/NestJS, Spring Boot, and Next.js golden paths.
