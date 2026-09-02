@@ -45,6 +45,13 @@ go run ./cmd/idp-bootstrap install --config .idp/config.json --stage addons --ap
 go run ./cmd/idp-bootstrap postflight --config .idp/config.json
 ```
 
+The add-ons inputs install the staging ApplicationSet against the conventional
+private repositories `platform-config` and `platform-charts` in the configured
+GitHub organization. Before applying the add-ons stage, create those
+repositories (or edit `addons.auto.tfvars.json` with their HTTPS URLs) and
+configure their credentials in Argo CD. The platform never writes GitHub
+tokens or private keys into Terraform state.
+
 Planning never applies infrastructure. Applying requires both `--apply` and the
 full digest of the reviewed plan; a changed or replaced plan is rejected. Saved
 plans may contain sensitive provider data, so the installer makes them

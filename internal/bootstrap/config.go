@@ -211,6 +211,8 @@ func addonsVariables(config Config) string {
 		"base_domain":                  config.DNS.Domain,
 		"acme_email":                   config.DNS.ACMEEmail,
 		"cloudflare_token_secret_name": config.DNS.CloudflareTokenSecretName,
+		"gitops_repository_url":        "https://github.com/" + config.GitHub.Organization + "/platform-config",
+		"chart_repository_url":         "https://github.com/" + config.GitHub.Organization + "/platform-charts",
 	}
 	data, _ := json.MarshalIndent(value, "", "  ")
 	return string(data) + "\n"
