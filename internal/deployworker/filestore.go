@@ -10,10 +10,10 @@ import (
 	"strings"
 )
 
-type FileStore struct{ root, organization, repository, baseDomain string }
+type FileStore struct{ root, organization, repository, baseDomain, accountID, region string }
 
-func NewFileStore(root, organization, repository, baseDomain string) *FileStore {
-	return &FileStore{root, organization, repository, baseDomain}
+func NewFileStore(root, organization, repository, baseDomain, accountID, region string) *FileStore {
+	return &FileStore{root, organization, repository, baseDomain, accountID, region}
 }
 
 func (store *FileStore) Next(ctx context.Context) (Work, error) {
@@ -65,7 +65,7 @@ func (store *FileStore) Next(ctx context.Context) (Work, error) {
 		if err := json.Unmarshal(record["request"], &request); err != nil {
 			return Work{}, errors.New("decode deployment service request")
 		}
-		work := Work{RequestID: text(record["requestId"]), ServiceName: text(record["serviceName"]), Owner: request.Metadata.Owner, Organization: store.organization, Repository: store.repository, Environment: "staging", BaseDomain: store.baseDomain, Template: request.Spec.Template.ID, TemplateVersion: request.Spec.Template.Version, CPU: request.Spec.Capacity.CPU, Memory: request.Spec.Capacity.Memory, MinReplicas: request.Spec.Capacity.MinReplicas, MaxReplicas: request.Spec.Capacity.MaxReplicas, TargetCPU: 70, Database: request.Spec.Database.Engine == "postgres", DatabaseSecretName: text(record["databaseSecretName"]), PullRequestNumber: number(record["deploymentPullRequestNumber"])}
+		work := Work{RequestID: text(record["requestId"]), ServiceName: text(record["serviceName"]), Owner: request.Metadata.Owner, Organization: store.organization, Repository: store.repository, Environment: "staging", BaseDomain: store.baseDomain, AWSAccountID: store.accountID, AWSRegion: store.region, Template: request.Spec.Template.ID, TemplateVersion: request.Spec.Template.Version, CPU: request.Spec.Capacity.CPU, Memory: request.Spec.Capacity.Memory, MinReplicas: request.Spec.Capacity.MinReplicas, MaxReplicas: request.Spec.Capacity.MaxReplicas, TargetCPU: 70, Database: request.Spec.Database.Engine == "postgres", DatabaseSecretName: text(record["databaseSecretName"]), PullRequestNumber: number(record["deploymentPullRequestNumber"])}
 		if work.RequestID == "" || work.ServiceName == "" || work.Owner == "" {
 			return Work{}, errors.New("deployment work record is incomplete")
 		}

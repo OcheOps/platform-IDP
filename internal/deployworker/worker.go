@@ -12,6 +12,7 @@ var ErrNoWork = errors.New("no deployment work is ready")
 
 type Work struct {
 	RequestID, ServiceName, Owner, Organization, Repository, Environment, BaseDomain string
+	AWSAccountID, AWSRegion                                                          string
 	Template, TemplateVersion, CPU, Memory                                           string
 	MinReplicas, MaxReplicas, TargetCPU                                              int
 	Database, ImageReady                                                             bool
