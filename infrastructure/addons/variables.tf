@@ -18,3 +18,13 @@ variable "cloudflare_token_secret_name" {
   default   = ""
   sensitive = true
 }
+variable "gitops_repository_url" {
+  type        = string
+  default     = ""
+  description = "HTTPS URL of the private platform-config GitOps repository. When set with chart_repository_url, installs the ApplicationSet."
+}
+variable "chart_repository_url" {
+  type        = string
+  default     = ""
+  description = "HTTPS URL of the repository containing the shared service chart."
+}

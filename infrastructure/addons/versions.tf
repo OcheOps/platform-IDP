@@ -10,6 +10,10 @@ terraform {
       source  = "hashicorp/helm"
       version = ">= 2.17, < 3.0"
     }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">= 2.32, < 3.0"
+    }
   }
 }
 
@@ -29,5 +33,16 @@ provider "helm" {
       args        = ["eks", "get-token", "--cluster-name", data.terraform_remote_state.foundation.outputs.cluster_name, "--region", var.aws_region]
       env         = var.aws_profile != "" ? { AWS_PROFILE = var.aws_profile } : {}
     }
+  }
+}
+
+provider "kubernetes" {
+  host                   = data.terraform_remote_state.foundation.outputs.cluster_endpoint
+  cluster_ca_certificate = base64decode(data.terraform_remote_state.foundation.outputs.cluster_certificate_authority_data)
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", data.terraform_remote_state.foundation.outputs.cluster_name, "--region", var.aws_region]
+    env         = var.aws_profile != "" ? { AWS_PROFILE = var.aws_profile } : {}
   }
 }

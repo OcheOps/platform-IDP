@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-services
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: ${gitops_repository_url}
+        revision: main
+        directories:
+          - path: services/*/staging
+  template:
+    metadata:
+      name: '{{path[1]}}-staging'
+    spec:
+      project: default
+      source:
+        repoURL: ${chart_repository_url}
+        targetRevision: main
+        path: charts/service
+        helm:
+          valueFiles:
+            - '{{path}}/values.json'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'svc-{{path[1]}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
