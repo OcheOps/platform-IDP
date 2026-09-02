@@ -33,7 +33,7 @@ The repository contains a working Phase 0 foundation and the first Phase 2 provi
 
 ### Deliberately not finished yet
 
-- Argo CD ApplicationSet installation, ECR lifecycle management, and the shared deployment chart wired into generated GitOps values.
+- ECR lifecycle management and the shared deployment chart wired into generated GitOps values.
 - DNS/TLS records, External Secrets database credentials, logs, metrics, and catalogue health links for each service.
 - Pull-request preview environments, TTL cleanup, and temporary databases.
 - Node/NestJS, Spring Boot, and Next.js golden paths.

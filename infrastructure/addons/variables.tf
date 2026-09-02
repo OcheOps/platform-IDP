@@ -28,3 +28,13 @@ variable "chart_repository_url" {
   default     = ""
   description = "HTTPS URL of the repository containing the shared service chart."
 }
+variable "gitops_repository_credentials_secret" {
+  type        = string
+  default     = ""
+  description = "AWS Secrets Manager key containing JSON username/password for the GitOps repository."
+}
+variable "chart_repository_credentials_secret" {
+  type        = string
+  default     = ""
+  description = "AWS Secrets Manager key containing JSON username/password for the chart repository."
+}

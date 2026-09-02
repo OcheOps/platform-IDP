@@ -52,6 +52,13 @@ repositories (or edit `addons.auto.tfvars.json` with their HTTPS URLs) and
 configure their credentials in Argo CD. The platform never writes GitHub
 tokens or private keys into Terraform state.
 
+To let External Secrets create the Argo repository Secrets, set the two
+credential variables in `addons.auto.tfvars.json` to AWS Secrets Manager keys.
+Each referenced secret must contain a JSON object with `username` and
+`password` properties (a GitHub deploy-token or fine-grained token with read
+access to the repository). The ExternalSecret refreshes hourly and Argo reads
+the resulting Secret in its `argocd` namespace.
+
 Planning never applies infrastructure. Applying requires both `--apply` and the
 full digest of the reviewed plan; a changed or replaced plan is rejected. Saved
 plans may contain sensitive provider data, so the installer makes them

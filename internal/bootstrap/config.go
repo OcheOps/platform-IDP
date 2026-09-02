@@ -201,18 +201,20 @@ func addonsBackendConfig(config Config) string {
 
 func addonsVariables(config Config) string {
 	value := map[string]any{
-		"installation_id":              config.InstallationID,
-		"aws_region":                   config.AWS.Region,
-		"aws_profile":                  config.AWS.Profile,
-		"state_bucket_name":            stateBucket(config),
-		"state_lock_table_name":        stateLockTable(config),
-		"dns_provider":                 config.DNS.Provider,
-		"dns_zone_id":                  config.DNS.ZoneID,
-		"base_domain":                  config.DNS.Domain,
-		"acme_email":                   config.DNS.ACMEEmail,
-		"cloudflare_token_secret_name": config.DNS.CloudflareTokenSecretName,
-		"gitops_repository_url":        "https://github.com/" + config.GitHub.Organization + "/platform-config",
-		"chart_repository_url":         "https://github.com/" + config.GitHub.Organization + "/platform-charts",
+		"installation_id":                      config.InstallationID,
+		"aws_region":                           config.AWS.Region,
+		"aws_profile":                          config.AWS.Profile,
+		"state_bucket_name":                    stateBucket(config),
+		"state_lock_table_name":                stateLockTable(config),
+		"dns_provider":                         config.DNS.Provider,
+		"dns_zone_id":                          config.DNS.ZoneID,
+		"base_domain":                          config.DNS.Domain,
+		"acme_email":                           config.DNS.ACMEEmail,
+		"cloudflare_token_secret_name":         config.DNS.CloudflareTokenSecretName,
+		"gitops_repository_url":                "https://github.com/" + config.GitHub.Organization + "/platform-config",
+		"chart_repository_url":                 "https://github.com/" + config.GitHub.Organization + "/platform-charts",
+		"gitops_repository_credentials_secret": "",
+		"chart_repository_credentials_secret":  "",
 	}
 	data, _ := json.MarshalIndent(value, "", "  ")
 	return string(data) + "\n"

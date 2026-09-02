@@ -37,6 +37,7 @@ resource "helm_release" "cluster_issuer" {
   depends_on = [helm_release.cert_manager]
   values = [yamlencode({
     acmeEmail = var.acme_email
+    awsRegion = var.aws_region
   })]
 }
 
