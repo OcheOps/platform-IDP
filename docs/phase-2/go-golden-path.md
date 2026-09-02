@@ -32,6 +32,13 @@ chart creates `ExternalSecret` mappings against that namespaced store. A shared
 cluster-wide store is deliberately forbidden because it would allow one service
 namespace to request another service's secrets.
 
+The deployment contract is rendered by `internal/gitops`: it produces one
+digest-pinned `values.json` per staging service and an Argo CD ApplicationSet
+that discovers only `services/*/staging`. The renderer emits External Secret
+references, never secret values, and rejects non-HTTPS repository URLs or
+mutable image tags. The post-apply deployment worker will commit these files
+and install the ApplicationSet in the next slice.
+
 The `templates/go-chi-api` golden path is a buildable reference repository.
 `internal/goldenpath.RenderGoChi` validates every declared input, copies the
 template without following symlinks or overwriting a target, substitutes module
