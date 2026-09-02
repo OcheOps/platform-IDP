@@ -14,7 +14,7 @@ func TestDeploymentWorkerRendersValuesAndOpensGitOpsPullRequest(t *testing.T) {
 	if err := deployworker.New(store, github).Reconcile(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if store.pr != 42 || store.state != "ready" || !strings.Contains(string(github.values), `"digest": "sha256:`) {
+	if store.pr != 42 || store.state != "awaiting_merge" || !strings.Contains(string(github.values), `"digest": "sha256:`) {
 		t.Fatalf("unexpected deployment state: %#v values=%s", store, github.values)
 	}
 }
@@ -31,7 +31,10 @@ func (s *fakeStore) RecordPullRequest(_ context.Context, _ string, pr int64) err
 	s.pr = pr
 	return nil
 }
-func (s *fakeStore) Ready(context.Context, string) error          { s.state = "ready"; return nil }
+func (s *fakeStore) AwaitingMerge(context.Context, string) error {
+	s.state = "awaiting_merge"
+	return nil
+}
 func (s *fakeStore) Failed(context.Context, string, string) error { s.state = "failed"; return nil }
 
 type fakeGitHub struct {

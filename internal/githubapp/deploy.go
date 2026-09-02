@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/OcheOps/platform-IDP/internal/deployworker"
+	"github.com/OcheOps/platform-IDP/internal/runtimeworker"
 )
 
 var imageStatusPattern = regexp.MustCompile(`^platform/image/(sha256:[a-f0-9]{64})$`)
@@ -36,6 +37,33 @@ func (client *Client) ObserveImage(ctx context.Context, work deployworker.Work) 
 		return deployworker.Observation{ImageReady: false}, nil
 	}
 	return deployworker.Observation{ImageReady: true, ImageRepository: work.AWSAccountID + ".dkr.ecr." + work.AWSRegion + ".amazonaws.com/platform/" + work.ServiceName, ImageDigest: found}, nil
+}
+
+func (client *Client) ObserveDeploymentPR(ctx context.Context, work runtimeworker.Work) (runtimeworker.GitHubObservation, error) {
+	if work.PullRequestNumber <= 0 {
+		return runtimeworker.GitHubObservation{}, errors.New("deployment pull request number is invalid")
+	}
+	var found struct {
+		State          string `json:"state"`
+		Merged         bool   `json:"merged"`
+		MergeCommitSHA string `json:"merge_commit_sha"`
+		Title          string `json:"title"`
+		Body           string `json:"body"`
+		Head           struct {
+			Ref string `json:"ref"`
+		} `json:"head"`
+		Base struct {
+			Ref string `json:"ref"`
+		} `json:"base"`
+	}
+	path := deploymentRepoPath(deployworker.Work{Organization: work.Organization, Repository: work.Repository}) + fmt.Sprintf("/pulls/%d", work.PullRequestNumber)
+	if _, err := client.request(ctx, http.MethodGet, path, nil, &found, http.StatusOK); err != nil {
+		return runtimeworker.GitHubObservation{}, err
+	}
+	if found.Title != "Deploy "+work.ServiceName+" in staging" || found.Head.Ref != "platform/deploy-"+work.RequestID || found.Base.Ref != "main" || !strings.Contains(found.Body, work.RequestID) {
+		return runtimeworker.GitHubObservation{}, errors.New("deployment pull request identity does not match the request")
+	}
+	return runtimeworker.GitHubObservation{Merged: found.Merged || (found.State == "closed" && found.MergeCommitSHA != ""), Revision: found.MergeCommitSHA}, nil
 }
 
 func (client *Client) EnsureDeploymentChange(ctx context.Context, work deployworker.Work, values []byte) (int64, error) {

@@ -33,7 +33,9 @@ Operators provide `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and
 and its contents are never logged. The GitHub App must be installed for all
 organization repositories so its installation token can access repositories
 created after the token is minted. `GENERATED_DIRECTORY`, `INSTALLATION_CONFIG`,
-and `GITHUB_API_URL` are optional overrides.
+and `GITHUB_API_URL` are optional overrides. Set `ARGOCD_URL` and
+`ARGOCD_AUTH_TOKEN` to enable the post-merge runtime reconciler; when unset,
+deployment requests remain in `awaiting_merge` until Argo CD is configured.
 
 Run the repeatable operator wizard to register and install the App, secure its
 downloaded private key, write the local runtime environment, and perform a

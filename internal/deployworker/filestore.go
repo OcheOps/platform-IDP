@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/OcheOps/platform-IDP/internal/runtimeworker"
 )
 
 type FileStore struct{ root, organization, repository, baseDomain, accountID, region string }
@@ -39,7 +41,7 @@ func (store *FileStore) Next(ctx context.Context) (Work, error) {
 		if text(record["requestState"]) != "deploying" {
 			continue
 		}
-		if state := text(record["deploymentState"]); state == "ready" || state == "failed" {
+		if state := text(record["deploymentState"]); state == "ready" || state == "failed" || state == "awaiting_merge" {
 			continue
 		}
 		var request struct {
@@ -65,7 +67,7 @@ func (store *FileStore) Next(ctx context.Context) (Work, error) {
 		if err := json.Unmarshal(record["request"], &request); err != nil {
 			return Work{}, errors.New("decode deployment service request")
 		}
-		work := Work{RequestID: text(record["requestId"]), ServiceName: text(record["serviceName"]), Owner: request.Metadata.Owner, Organization: store.organization, Repository: store.repository, Environment: "staging", BaseDomain: store.baseDomain, AWSAccountID: store.accountID, AWSRegion: store.region, Template: request.Spec.Template.ID, TemplateVersion: request.Spec.Template.Version, CPU: request.Spec.Capacity.CPU, Memory: request.Spec.Capacity.Memory, MinReplicas: request.Spec.Capacity.MinReplicas, MaxReplicas: request.Spec.Capacity.MaxReplicas, TargetCPU: 70, Database: request.Spec.Database.Engine == "postgres", DatabaseSecretName: text(record["databaseSecretName"]), PullRequestNumber: number(record["deploymentPullRequestNumber"])}
+		work := Work{RequestID: text(record["requestId"]), ServiceName: text(record["serviceName"]), Owner: request.Metadata.Owner, Organization: store.organization, Repository: store.repository, Environment: "staging", BaseDomain: store.baseDomain, AWSAccountID: store.accountID, AWSRegion: store.region, Template: request.Spec.Template.ID, TemplateVersion: request.Spec.Template.Version, CPU: request.Spec.Capacity.CPU, Memory: request.Spec.Capacity.Memory, MinReplicas: request.Spec.Capacity.MinReplicas, MaxReplicas: request.Spec.Capacity.MaxReplicas, TargetCPU: 70, Database: request.Spec.Database.Engine == "postgres", DatabaseSecretName: text(record["databaseSecretName"]), PullRequestNumber: number(record["deploymentPullRequestNumber"]), DeploymentState: text(record["deploymentState"])}
 		if work.RequestID == "" || work.ServiceName == "" || work.Owner == "" {
 			return Work{}, errors.New("deployment work record is incomplete")
 		}
@@ -84,9 +86,45 @@ func (store *FileStore) DeploymentStarted(_ context.Context, id string) error {
 func (store *FileStore) RecordPullRequest(_ context.Context, id string, pr int64) error {
 	return store.update(id, func(r map[string]json.RawMessage) error { set(r, "deploymentPullRequestNumber", pr); return nil })
 }
-func (store *FileStore) Ready(_ context.Context, id string) error {
+func (store *FileStore) AwaitingMerge(_ context.Context, id string) error {
 	return store.update(id, func(r map[string]json.RawMessage) error {
+		set(r, "deploymentState", "awaiting_merge")
+		set(r, "failureCode", "")
+		return nil
+	})
+}
+func (store *FileStore) NextRuntime(ctx context.Context) (runtimeworker.Work, error) {
+	if err := ctx.Err(); err != nil {
+		return runtimeworker.Work{}, err
+	}
+	entries, err := os.ReadDir(filepath.Join(store.root, "requests"))
+	if errors.Is(err, os.ErrNotExist) {
+		return runtimeworker.Work{}, runtimeworker.ErrNoWork
+	}
+	if err != nil {
+		return runtimeworker.Work{}, err
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		record, err := read(filepath.Join(store.root, "requests", entry.Name()))
+		if err != nil {
+			return runtimeworker.Work{}, err
+		}
+		if text(record["requestState"]) != "deploying" || text(record["deploymentState"]) != "awaiting_merge" {
+			continue
+		}
+		return runtimeworker.Work{RequestID: text(record["requestId"]), ServiceName: text(record["serviceName"]), Organization: store.organization, Repository: store.repository, PullRequestNumber: number(record["deploymentPullRequestNumber"])}, nil
+	}
+	return runtimeworker.Work{}, runtimeworker.ErrNoWork
+}
+func (store *FileStore) Ready(_ context.Context, id, revision string) error {
+	return store.update(id, func(r map[string]json.RawMessage) error {
+		set(r, "requestState", "ready")
 		set(r, "deploymentState", "ready")
+		set(r, "deploymentRevision", revision)
 		set(r, "failureCode", "")
 		return nil
 	})

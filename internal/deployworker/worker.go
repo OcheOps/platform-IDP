@@ -18,6 +18,7 @@ type Work struct {
 	Database, ImageReady                                                             bool
 	ImageRepository, ImageDigest, DatabaseSecretName                                 string
 	PullRequestNumber                                                                int64
+	DeploymentState                                                                  string
 }
 
 type Observation struct {
@@ -30,7 +31,7 @@ type Store interface {
 	Next(context.Context) (Work, error)
 	DeploymentStarted(context.Context, string) error
 	RecordPullRequest(context.Context, string, int64) error
-	Ready(context.Context, string) error
+	AwaitingMerge(context.Context, string) error
 	Failed(context.Context, string, string) error
 }
 
@@ -87,7 +88,7 @@ func (worker *Worker) Reconcile(ctx context.Context) error {
 			return worker.fail(ctx, work.RequestID, "github_deployment_verification_failed", err)
 		}
 	}
-	return worker.store.Ready(ctx, work.RequestID)
+	return worker.store.AwaitingMerge(ctx, work.RequestID)
 }
 
 func (worker *Worker) fail(ctx context.Context, id, code string, cause error) error {

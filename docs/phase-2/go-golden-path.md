@@ -38,9 +38,9 @@ that discovers only `services/*/staging`. The renderer emits External Secret
 references, never secret values, and rejects non-HTTPS repository URLs or
 mutable image tags. The deployment worker waits for the application CI image
 attestation, commits these files to a deterministic GitOps pull request, and
-verifies the exact values before marking the deployment request ready.
-Installing the ApplicationSet and wiring authenticated Argo CD health
-observations into request state remain next.
+records `awaiting_merge`. After merge, the runtime reconciler queries
+authenticated Argo CD and marks the request ready only when the expected
+application is synced and healthy. Installing the ApplicationSet remains next.
 
 The `templates/go-chi-api` golden path is a buildable reference repository.
 `internal/goldenpath.RenderGoChi` validates every declared input, copies the

@@ -16,12 +16,14 @@ import (
 
 	"github.com/OcheOps/platform-IDP/internal/applyworker"
 	"github.com/OcheOps/platform-IDP/internal/approvalworker"
+	"github.com/OcheOps/platform-IDP/internal/argocd"
 	"github.com/OcheOps/platform-IDP/internal/bootstrap"
 	"github.com/OcheOps/platform-IDP/internal/configworker"
 	"github.com/OcheOps/platform-IDP/internal/deployworker"
 	"github.com/OcheOps/platform-IDP/internal/githubapp"
 	"github.com/OcheOps/platform-IDP/internal/planworker"
 	"github.com/OcheOps/platform-IDP/internal/repositoryworker"
+	"github.com/OcheOps/platform-IDP/internal/runtimeworker"
 )
 
 func main() {
@@ -83,6 +85,20 @@ func run(args []string) error {
 	applyWorker := applyworker.New(applyStore, github)
 	deployStore := deployworker.NewFileStore(valueOrDefault("GENERATED_DIRECTORY", ".platform-data"), installation.GitHub.Organization, valueOrDefault("PLATFORM_CONFIG_REPOSITORY", "platform-config"), installation.DNS.Domain, installation.AWS.AccountID, installation.AWS.Region)
 	deployWorker := deployworker.New(deployStore, github)
+	var runtimeWorkerInstance *runtimeworker.Worker
+	if argoURL := strings.TrimSpace(os.Getenv("ARGOCD_URL")); argoURL != "" {
+		argo, err := argocd.NewClient(argoURL, httpClient, func(context.Context) (string, error) {
+			token := strings.TrimSpace(os.Getenv("ARGOCD_AUTH_TOKEN"))
+			if token == "" {
+				return "", errors.New("ARGOCD_AUTH_TOKEN is required when ARGOCD_URL is set")
+			}
+			return token, nil
+		})
+		if err != nil {
+			return err
+		}
+		runtimeWorkerInstance = runtimeworker.New(deployStore, github, argo)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	interval := 30 * time.Second
@@ -93,7 +109,11 @@ func run(args []string) error {
 		approvalErr := approvalWorker.Reconcile(ctx)
 		applyErr := applyWorker.Reconcile(ctx)
 		deployErr := deployWorker.Reconcile(ctx)
-		if errors.Is(repositoryErr, context.Canceled) || errors.Is(configErr, context.Canceled) || errors.Is(planErr, context.Canceled) || errors.Is(approvalErr, context.Canceled) || errors.Is(applyErr, context.Canceled) || errors.Is(deployErr, context.Canceled) {
+		runtimeErr := error(nil)
+		if runtimeWorkerInstance != nil {
+			runtimeErr = runtimeWorkerInstance.Reconcile(ctx)
+		}
+		if errors.Is(repositoryErr, context.Canceled) || errors.Is(configErr, context.Canceled) || errors.Is(planErr, context.Canceled) || errors.Is(approvalErr, context.Canceled) || errors.Is(applyErr, context.Canceled) || errors.Is(deployErr, context.Canceled) || errors.Is(runtimeErr, context.Canceled) {
 			return nil
 		}
 		if repositoryErr != nil && !errors.Is(repositoryErr, repositoryworker.ErrNoWork) {
@@ -114,7 +134,10 @@ func run(args []string) error {
 		if deployErr != nil && !errors.Is(deployErr, deployworker.ErrNoWork) {
 			slog.Error("deployment reconciliation failed", "error", deployErr)
 		}
-		if repositoryErr == nil || configErr == nil || planErr == nil || approvalErr == nil || applyErr == nil || deployErr == nil {
+		if runtimeErr != nil && !errors.Is(runtimeErr, runtimeworker.ErrNoWork) {
+			slog.Error("runtime reconciliation failed", "error", runtimeErr)
+		}
+		if repositoryErr == nil || configErr == nil || planErr == nil || approvalErr == nil || applyErr == nil || deployErr == nil || runtimeErr == nil {
 			continue
 		}
 		timer := time.NewTimer(interval)

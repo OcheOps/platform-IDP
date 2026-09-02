@@ -4,7 +4,7 @@ Platform IDP is a self-hosted internal developer platform for small engineering 
 
 > Give me a Go API with PostgreSQL in staging.
 
-into a reviewed, reproducible delivery workflow: a generated GitHub repository, an infrastructure change, an OpenTofu plan, independent approvals, AWS provisioning, and (next) an Argo CD deployment.
+into a reviewed, reproducible delivery workflow: a generated GitHub repository, an infrastructure change, an OpenTofu plan, independent approvals, AWS provisioning, and an Argo CD deployment.
 
 This is an opinionated golden-path platform, not a general Kubernetes deployment UI. Git is the source of truth; the platform reconciles GitHub, OpenTofu, AWS, Kubernetes, and Argo CD into one service catalogue.
 
@@ -28,13 +28,12 @@ The repository contains a working Phase 0 foundation and the first Phase 2 provi
 - Merge-triggered OpenTofu apply workflow that compares a fresh plan with the approved digest before mutation, publishes an apply attestation, and safely recovers an interrupted status publication.
 - Apply reconciliation with durable state transitions, deterministic resource identities, safe retries, and operation-key audit deduplication.
 - GitOps value rendering for digest-pinned staging releases and a constrained Argo CD ApplicationSet contract.
-- A deployment-worker contract that waits for the tested ECR image digest before creating GitOps desired state.
-- Authenticated Argo CD health observation that reports only synced, healthy, successful applications as ready.
+- A deployment worker that waits for the tested ECR image digest, creates a deterministic GitOps pull request, and records `awaiting_merge` until it is merged.
+- Authenticated Argo CD health observation; a runtime reconciler marks requests ready only after the merged revision is synced and healthy.
 
 ### Deliberately not finished yet
 
-- Committing rendered GitOps values after apply and the deployment reconciler.
-- Argo CD ApplicationSet installation, wiring Argo health observations into request state, ECR lifecycle management, and the shared deployment chart wired into generated GitOps values.
+- Argo CD ApplicationSet installation, ECR lifecycle management, and the shared deployment chart wired into generated GitOps values.
 - DNS/TLS records, External Secrets database credentials, logs, metrics, and catalogue health links for each service.
 - Pull-request preview environments, TTL cleanup, and temporary databases.
 - Node/NestJS, Spring Boot, and Next.js golden paths.
@@ -72,7 +71,7 @@ The v1 deployment target is one self-hosted AWS account containing one EKS clust
 
 - `cmd/idp-bootstrap` — operator installation CLI.
 - `cmd/platform-api` — service-request API.
-- `cmd/repository-worker` — repository, config-PR, plan, approval, and apply reconcilers.
+- `cmd/repository-worker` — repository, config-PR, plan, approval, apply, GitOps deployment, and Argo runtime reconcilers.
 - `internal/*` — contracts and provider adapters.
 - `infrastructure/` — OpenTofu foundation and add-ons modules.
 - `charts/service` — shared service Helm chart.
