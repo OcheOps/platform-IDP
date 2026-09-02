@@ -57,6 +57,16 @@ func TestAuthenticatedDeveloperCanCreateGoService(t *testing.T) {
 	if result.CostEstimate.Digest == "" || result.CostEstimate.PriceSource != "versioned-fallback" || result.CostEstimate.IncrementalService.AmountCents <= 0 {
 		t.Fatalf("missing cost estimate: %#v", result.CostEstimate)
 	}
+	list := httptest.NewRecorder()
+	handler.ServeHTTP(list, httptest.NewRequest(http.MethodGet, "/v1/service-requests", nil))
+	if list.Code != http.StatusOK || !bytes.Contains(list.Body.Bytes(), []byte(`"serviceName":"orders-api"`)) {
+		t.Fatalf("catalogue response = %d: %s", list.Code, list.Body.String())
+	}
+	detail := httptest.NewRecorder()
+	handler.ServeHTTP(detail, httptest.NewRequest(http.MethodGet, "/v1/service-requests/"+result.RequestID, nil))
+	if detail.Code != http.StatusOK || !bytes.Contains(detail.Body.Bytes(), []byte(`"requestId":"`+result.RequestID+`"`)) {
+		t.Fatalf("detail response = %d: %s", detail.Code, detail.Body.String())
+	}
 	for _, path := range []string{
 		filepath.Join(generated, "repositories", "orders-api", "go.mod"),
 		filepath.Join(generated, "requests", result.RequestID+".json"),

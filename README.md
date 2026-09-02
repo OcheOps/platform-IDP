@@ -80,6 +80,11 @@ The v1 deployment target is one self-hosted AWS account containing one EKS clust
 - `contracts/` — JSON schemas and contract tests.
 - `docs/` — phase specifications, security model, workflow, and conventions.
 
+The API exposes authenticated catalogue reads at `GET /v1/service-requests` and
+`GET /v1/service-requests/{requestId}`. Responses contain workflow state,
+deployment revision, pull-request identity, and cost estimate metadata; secret
+values and raw credentials are never returned.
+
 ## Local development
 
 Requirements: Go, OpenTofu, Terraform-compatible AWS credentials/profile, `kubectl` for postflight checks, `gh`, and Python 3 for the generated validator. No secret values belong in Git or generated configuration files.

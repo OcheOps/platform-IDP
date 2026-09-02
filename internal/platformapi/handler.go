@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -56,25 +57,36 @@ type auditEvent struct {
 }
 
 type submission struct {
-	RequestID       string          `json:"requestId"`
-	ServiceName     string          `json:"serviceName"`
-	RequestState    string          `json:"requestState"`
-	RepositoryState string          `json:"repositoryState"`
-	RequestHash     string          `json:"requestHash"`
-	Actor           string          `json:"actor"`
-	Request         json.RawMessage `json:"request"`
-	AuditEvents     []auditEvent    `json:"auditEvents"`
-	CreatedAt       string          `json:"createdAt"`
-	FailureCode     string          `json:"failureCode,omitempty"`
-	CostEstimate    costs.Estimate  `json:"costEstimate"`
+	RequestID                   string          `json:"requestId"`
+	ServiceName                 string          `json:"serviceName"`
+	RequestState                string          `json:"requestState"`
+	RepositoryState             string          `json:"repositoryState"`
+	RequestHash                 string          `json:"requestHash"`
+	Actor                       string          `json:"actor"`
+	Request                     json.RawMessage `json:"request"`
+	AuditEvents                 []auditEvent    `json:"auditEvents"`
+	CreatedAt                   string          `json:"createdAt"`
+	FailureCode                 string          `json:"failureCode,omitempty"`
+	CostEstimate                costs.Estimate  `json:"costEstimate"`
+	DeploymentState             string          `json:"deploymentState,omitempty"`
+	DeploymentRevision          string          `json:"deploymentRevision,omitempty"`
+	DeploymentPullRequestNumber int64           `json:"deploymentPullRequestNumber,omitempty"`
+	ImageRepository             string          `json:"imageRepository,omitempty"`
+	ImageDigest                 string          `json:"imageDigest,omitempty"`
 }
 
 type submissionResponse struct {
-	RequestID       string         `json:"requestId"`
-	ServiceName     string         `json:"serviceName"`
-	CostEstimate    costs.Estimate `json:"costEstimate"`
-	RequestState    string         `json:"requestState"`
-	RepositoryState string         `json:"repositoryState"`
+	RequestID                   string         `json:"requestId"`
+	ServiceName                 string         `json:"serviceName"`
+	CostEstimate                costs.Estimate `json:"costEstimate"`
+	RequestState                string         `json:"requestState"`
+	RepositoryState             string         `json:"repositoryState"`
+	DeploymentState             string         `json:"deploymentState,omitempty"`
+	DeploymentRevision          string         `json:"deploymentRevision,omitempty"`
+	DeploymentPullRequestNumber int64          `json:"deploymentPullRequestNumber,omitempty"`
+	FailureCode                 string         `json:"failureCode,omitempty"`
+	ImageRepository             string         `json:"imageRepository,omitempty"`
+	ImageDigest                 string         `json:"imageDigest,omitempty"`
 }
 
 type renderMarker struct {
@@ -109,6 +121,8 @@ func New(config Config) (*Handler, error) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	handler.mux.HandleFunc("POST /v1/service-requests", handler.createServiceRequest)
+	handler.mux.HandleFunc("GET /v1/service-requests", handler.listServiceRequests)
+	handler.mux.HandleFunc("GET /v1/service-requests/{requestID}", handler.getServiceRequest)
 	return handler, nil
 }
 
@@ -161,6 +175,65 @@ func (handler *Handler) createServiceRequest(response http.ResponseWriter, reque
 	handler.mu.Lock()
 	defer handler.mu.Unlock()
 	handler.submit(response, desired, canonical, actor)
+}
+
+func (handler *Handler) listServiceRequests(response http.ResponseWriter, request *http.Request) {
+	if !handler.authenticate(response, request) {
+		return
+	}
+	entries, err := os.ReadDir(filepath.Join(handler.config.GeneratedDirectory, "requests"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		writeError(response, http.StatusInternalServerError, "persistence_failed", "Stored service requests could not be read.")
+		return
+	}
+	items := make([]submissionResponse, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		record, err := readSubmission(filepath.Join(handler.config.GeneratedDirectory, "requests", entry.Name()))
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, "persistence_failed", "A stored service request could not be read.")
+			return
+		}
+		items = append(items, responseFor(record))
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ServiceName < items[j].ServiceName })
+	writeJSON(response, http.StatusOK, items)
+}
+
+func (handler *Handler) getServiceRequest(response http.ResponseWriter, request *http.Request) {
+	if !handler.authenticate(response, request) {
+		return
+	}
+	id := request.PathValue("requestID")
+	if id == "" || strings.ContainsAny(id, "/\\") {
+		writeError(response, http.StatusBadRequest, "invalid_request_id", "The request ID is invalid.")
+		return
+	}
+	record, err := readSubmission(filepath.Join(handler.config.GeneratedDirectory, "requests", id+".json"))
+	if errors.Is(err, os.ErrNotExist) {
+		writeError(response, http.StatusNotFound, "not_found", "The service request was not found.")
+		return
+	}
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "persistence_failed", "The stored service request could not be read.")
+		return
+	}
+	if record.RequestID != id {
+		writeError(response, http.StatusNotFound, "not_found", "The service request was not found.")
+		return
+	}
+	writeJSON(response, http.StatusOK, responseFor(record))
+}
+
+func (handler *Handler) authenticate(response http.ResponseWriter, request *http.Request) bool {
+	actor, err := handler.config.Authenticate(request)
+	if err != nil || actor == "" {
+		writeError(response, http.StatusUnauthorized, "authentication_required", "Authentication is required.")
+		return false
+	}
+	return true
 }
 
 func (handler *Handler) submit(response http.ResponseWriter, desired serviceRequest, canonical []byte, actor string) {
@@ -298,7 +371,9 @@ func markerMatches(repositoryPath, requestID, requestHash string) bool {
 func responseFor(record submission) submissionResponse {
 	return submissionResponse{
 		RequestID: record.RequestID, ServiceName: record.ServiceName, CostEstimate: record.CostEstimate,
-		RequestState: record.RequestState, RepositoryState: record.RepositoryState,
+		RequestState: record.RequestState, RepositoryState: record.RepositoryState, DeploymentState: record.DeploymentState,
+		DeploymentRevision: record.DeploymentRevision, DeploymentPullRequestNumber: record.DeploymentPullRequestNumber,
+		FailureCode: record.FailureCode, ImageRepository: record.ImageRepository, ImageDigest: record.ImageDigest,
 	}
 }
 
