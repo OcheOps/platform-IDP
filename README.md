@@ -79,6 +79,7 @@ The v1 deployment target is one self-hosted AWS account containing one EKS clust
 - `templates/go-chi-api` — first golden path.
 - `contracts/` — JSON schemas and contract tests.
 - `docs/` — phase specifications, security model, workflow, and conventions.
+- `scripts/publish-platform-chart.sh` — publish the shared chart to the private `platform-charts` repository consumed by Argo CD.
 
 The API exposes authenticated catalogue reads at `GET /v1/service-requests` and
 `GET /v1/service-requests/{requestId}`. Responses contain workflow state,

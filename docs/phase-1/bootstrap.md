@@ -52,6 +52,13 @@ repositories (or edit `addons.auto.tfvars.json` with their HTTPS URLs) and
 configure their credentials in Argo CD. The platform never writes GitHub
 tokens or private keys into Terraform state.
 
+Publish the shared chart after authenticating with the self-hosted GitHub
+organization:
+
+```bash
+./scripts/publish-platform-chart.sh <github-organization>
+```
+
 To let External Secrets create the Argo repository Secrets, set the two
 credential variables in `addons.auto.tfvars.json` to AWS Secrets Manager keys.
 Each referenced secret must contain a JSON object with `username` and
