@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/OcheOps/platform-IDP/internal/configworker"
+	"github.com/OcheOps/platform-IDP/internal/resourceidentity"
 )
 
 const configRepositoryDescription = "Platform IDP desired state (schema v1)"
@@ -215,6 +216,11 @@ func (client *Client) verifyConfigFiles(ctx context.Context, work configworker.W
 func configFiles(work configworker.Work) (map[string][]byte, error) {
 	var desired struct {
 		Metadata struct{ Name, RequestID string } `json:"metadata"`
+		Spec     struct {
+			Database struct {
+				Engine string `json:"engine"`
+			} `json:"database"`
+		} `json:"spec"`
 	}
 	if err := json.Unmarshal(work.Request, &desired); err != nil {
 		return nil, fmt.Errorf("decode request identity: %w", err)
@@ -230,8 +236,16 @@ func configFiles(work configworker.Work) (map[string][]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("normalize estimate: %w", err)
 	}
+	resources, err := resourceidentity.Staging(work.Platform.InstallationID, work.ServiceName, work.Platform.AWSAccountID, desired.Spec.Database.Engine == "postgres")
+	if err != nil {
+		return nil, fmt.Errorf("calculate staging resource identities: %w", err)
+	}
+	resourcesData, err := json.MarshalIndent(resources, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("encode staging resource identities: %w", err)
+	}
 	prefix := "services/" + work.ServiceName + "/staging/"
-	return map[string][]byte{prefix + "request.json": request, prefix + "estimate.json": estimate}, nil
+	return map[string][]byte{prefix + "request.json": request, prefix + "estimate.json": estimate, prefix + "resources.json": append(resourcesData, '\n')}, nil
 }
 func prettyJSON(data []byte) ([]byte, error) {
 	var value any

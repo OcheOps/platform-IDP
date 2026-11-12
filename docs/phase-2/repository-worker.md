@@ -64,9 +64,10 @@ creating a repository. Reruns can safely reuse an existing local configuration.
 
 After an application repository becomes `repository_ready`, the same process
 reconciles its central desired-state review. It creates or verifies the private
-`platform-config` repository, writes the canonical request and immutable cost
-estimate to `services/<service>/staging/` on a deterministic request branch,
-and opens one pull request. Existing branches and pull requests are reused only
+`platform-config` repository, writes the canonical request, immutable cost
+estimate, and shared-library-generated `resources.json` to
+`services/<service>/staging/` on a deterministic request branch, and opens one
+pull request. Existing branches and pull requests are reused only
 when their identities, head SHA, and committed bytes match; divergent content
 is never overwritten. Once verified, the service request enters `planning`.
 `PLATFORM_CONFIG_REPOSITORY` optionally overrides the repository name.
@@ -77,7 +78,7 @@ S3/DynamoDB backend, a real OpenTofu service module for ECR (including a
 containers, and a pull-request planning workflow. The workflow pins checkout,
 AWS credential, and OpenTofu setup actions by commit; uses OpenTofu 1.12.6;
 authenticates to AWS through the configured OIDC role; validates that a request
-changes exactly one request/estimate pair; and deletes the potentially
+changes exactly one request/estimate/resources set; and deletes the potentially
 sensitive binary plan after writing only its digest and resource-action counts
 to the job summary. The generated module uses AWS provider 6.61.0.
 

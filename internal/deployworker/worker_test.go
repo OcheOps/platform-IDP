@@ -9,7 +9,7 @@ import (
 )
 
 func TestDeploymentWorkerRendersValuesAndOpensGitOpsPullRequest(t *testing.T) {
-	store := &fakeStore{work: deployworker.Work{RequestID: "request-1", ServiceName: "orders-api", Owner: "orders-team", Environment: "staging", BaseDomain: "example.com", Template: "go-chi-api", TemplateVersion: "v0.1.0", CPU: "250m", Memory: "256Mi", MinReplicas: 1, MaxReplicas: 3, TargetCPU: 70, Database: true, DatabaseSecretName: "platform/idp/orders-api/staging/database"}}
+	store := &fakeStore{work: deployworker.Work{RequestID: "request-1", ServiceName: "orders-api", Owner: "orders-team", Environment: "staging", BaseDomain: "example.com", AWSAccountID: "123456789012", AWSRegion: "eu-west-1", Template: "go-chi-api", TemplateVersion: "v0.1.0", CPU: "250m", Memory: "256Mi", MinReplicas: 1, MaxReplicas: 3, TargetCPU: 70, Database: true, DatabaseSecretName: "platform/small-team-idp/orders-api/staging/database", SecretStoreRoleARN: "arn:aws:iam::123456789012:role/small-team-idp-orders-api-staging-secrets-8c7a25e2"}}
 	github := &fakeGitHub{observation: deployworker.Observation{ImageReady: true, ImageRepository: "123456789012.dkr.ecr.eu-west-1.amazonaws.com/platform/orders-api", ImageDigest: "sha256:" + strings.Repeat("a", 64)}}
 	if err := deployworker.New(store, github).Reconcile(context.Background()); err != nil {
 		t.Fatal(err)

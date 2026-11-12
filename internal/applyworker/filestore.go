@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/OcheOps/platform-IDP/internal/resourceidentity"
 )
 
 type FileStore struct {
@@ -84,13 +86,19 @@ func (store *FileStore) MarkApplying(_ context.Context, id, mergeSHA string) err
 
 func (store *FileStore) Applied(_ context.Context, work Work, mergeSHA string) error {
 	return store.update(work.RequestID, func(record map[string]json.RawMessage) error {
+		identity, err := resourceidentity.Staging(work.InstallationID, work.ServiceName, work.AWSAccountID, work.Database)
+		if err != nil {
+			return err
+		}
 		resources := map[string]string{
-			"canonicalId":      work.InstallationID + "/" + work.ServiceName + "/staging",
-			"ecrRepository":    "platform/" + work.ServiceName,
+			"canonicalId":      identity.CanonicalID,
+			"ecrRepository":    identity.ECRRepository,
 			"ecrRepositoryUrl": work.AWSAccountID + ".dkr.ecr." + work.AWSRegion + ".amazonaws.com/platform/" + work.ServiceName,
 		}
 		if work.Database {
-			resources["databaseSecretName"] = "platform/" + work.InstallationID + "/" + work.ServiceName + "/staging/database"
+			resources["databaseSecretName"] = identity.DatabaseSecretName
+			resources["secretStoreRoleName"] = identity.SecretStoreRoleName
+			resources["secretStoreRoleArn"] = identity.SecretStoreRoleARN
 		}
 		set(record, "requestState", "deploying")
 		set(record, "applyMergeSHA", mergeSHA)

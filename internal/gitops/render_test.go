@@ -9,7 +9,7 @@ import (
 )
 
 func TestRenderStagingValuesUsesImmutableImageAndDatabaseSecretReference(t *testing.T) {
-	data, err := gitops.RenderValues(gitops.Work{Service: "orders-api", Owner: "orders-team", Template: "go-chi-api", TemplateVersion: "v0.1.0", Environment: "staging", BaseDomain: "example.com", RequestID: "request-1", ImageRepository: "123456789012.dkr.ecr.eu-west-1.amazonaws.com/platform/orders-api", ImageDigest: "sha256:" + strings.Repeat("a", 64), CPU: "250m", Memory: "256Mi", MinReplicas: 1, MaxReplicas: 3, TargetCPU: 70, Database: true, DatabaseSecretName: "platform/idp/orders-api/staging/database"})
+	data, err := gitops.RenderValues(gitops.Work{Service: "orders-api", Owner: "orders-team", Template: "go-chi-api", TemplateVersion: "v0.1.0", Environment: "staging", BaseDomain: "example.com", RequestID: "request-1", AWSRegion: "eu-west-1", SecretStoreRoleARN: "arn:aws:iam::123456789012:role/small-team-idp-orders-api-staging-secrets-8c7a25e2", ImageRepository: "123456789012.dkr.ecr.eu-west-1.amazonaws.com/platform/orders-api", ImageDigest: "sha256:" + strings.Repeat("a", 64), CPU: "250m", Memory: "256Mi", MinReplicas: 1, MaxReplicas: 3, TargetCPU: 70, Database: true, DatabaseSecretName: "platform/small-team-idp/orders-api/staging/database"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,8 +26,19 @@ func TestRenderStagingValuesUsesImmutableImageAndDatabaseSecretReference(t *test
 		t.Fatalf("unexpected database values: %#v", database)
 	}
 	secrets := values["secrets"].([]any)
-	if len(secrets) != 1 || secrets[0].(map[string]any)["remoteKey"] != "platform/idp/orders-api/staging/database" {
+	if len(secrets) != 1 || secrets[0].(map[string]any)["remoteKey"] != "platform/small-team-idp/orders-api/staging/database" {
 		t.Fatalf("unexpected secret mapping: %#v", secrets)
+	}
+	secretStore := values["secretStore"].(map[string]any)
+	if secretStore["roleARN"] != "arn:aws:iam::123456789012:role/small-team-idp-orders-api-staging-secrets-8c7a25e2" {
+		t.Fatalf("unexpected secret store: %#v", secretStore)
+	}
+}
+
+func TestRenderStagingValuesRejectsDatabaseWithoutSecretStoreIdentity(t *testing.T) {
+	_, err := gitops.RenderValues(gitops.Work{Service: "orders-api", Owner: "orders-team", Template: "go-chi-api", TemplateVersion: "v0.1.0", Environment: "staging", BaseDomain: "example.com", RequestID: "request-1", ImageRepository: "123456789012.dkr.ecr.eu-west-1.amazonaws.com/platform/orders-api", ImageDigest: "sha256:" + strings.Repeat("a", 64), CPU: "250m", Memory: "256Mi", MinReplicas: 1, MaxReplicas: 3, TargetCPU: 70, Database: true, DatabaseSecretName: "platform/small-team-idp/orders-api/staging/database"})
+	if err == nil || !strings.Contains(err.Error(), "secret store identity") {
+		t.Fatalf("expected missing secret store identity rejection, got %v", err)
 	}
 }
 

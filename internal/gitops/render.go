@@ -14,18 +14,20 @@ var digest = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 type Work struct {
 	Service, Owner, Template, TemplateVersion, ImageRepository, ImageDigest string
 	Environment, BaseDomain, DatabaseSecretName, RequestID                  string
+	AWSRegion, SecretStoreRoleARN                                           string
 	CPU, Memory                                                             string
 	MinReplicas, MaxReplicas, TargetCPU                                     int
 	Database                                                                bool
 }
 
 type Values struct {
-	Service    Service     `json:"service"`
-	Image      Image       `json:"image"`
-	Deployment Deployment  `json:"deployment"`
-	Ingress    Ingress     `json:"ingress"`
-	Database   Database    `json:"database"`
-	Secrets    []SecretRef `json:"secrets"`
+	Service     Service      `json:"service"`
+	Image       Image        `json:"image"`
+	Deployment  Deployment   `json:"deployment"`
+	Ingress     Ingress      `json:"ingress"`
+	Database    Database     `json:"database"`
+	SecretStore *SecretStore `json:"secretStore,omitempty"`
+	Secrets     []SecretRef  `json:"secrets"`
 }
 type Service struct {
 	Name        string `json:"name"`
@@ -63,6 +65,10 @@ type Database struct {
 	SecretName       string `json:"secretName,omitempty"`
 	MigrationCommand string `json:"migrationCommand,omitempty"`
 }
+type SecretStore struct {
+	RoleARN string `json:"roleARN"`
+	Region  string `json:"region"`
+}
 type SecretRef struct {
 	EnvironmentVariable string `json:"environmentVariable"`
 	SecretName          string `json:"secretName"`
@@ -92,7 +98,11 @@ func RenderValues(work Work) ([]byte, error) {
 		if work.DatabaseSecretName == "" {
 			return nil, errors.New("database secret name is required")
 		}
+		if !regexp.MustCompile(`^arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]{1,64}$`).MatchString(work.SecretStoreRoleARN) || !regexp.MustCompile(`^[a-z]{2}(?:-gov)?-[a-z]+-[0-9]$`).MatchString(work.AWSRegion) {
+			return nil, errors.New("database secret store identity is invalid")
+		}
 		values.Database = Database{Engine: "postgres", SecretName: work.Service + "-db", MigrationCommand: "/migrate"}
+		values.SecretStore = &SecretStore{RoleARN: work.SecretStoreRoleARN, Region: work.AWSRegion}
 		values.Secrets = append(values.Secrets, SecretRef{"DATABASE_URL", work.Service + "-db", "DATABASE_URL", work.DatabaseSecretName})
 	}
 	data, err := json.MarshalIndent(values, "", "  ")

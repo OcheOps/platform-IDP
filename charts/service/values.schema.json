@@ -75,6 +75,15 @@
         }
       ]
     },
+    "secretStore": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["roleARN", "region"],
+      "properties": {
+        "roleARN": { "type": "string", "pattern": "^arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]{1,64}$" },
+        "region": { "type": "string", "pattern": "^[a-z]{2}(?:-gov)?-[a-z]+-[0-9]$" }
+      }
+    },
     "secrets": {
       "type": "array", "uniqueItems": true,
       "items": {
@@ -88,5 +97,12 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "secrets": { "minItems": 1 } }, "required": ["secrets"] },
+      "then": { "properties": { "secretStore": { "type": "object" } }, "required": ["secretStore"] },
+      "else": { "properties": { "secretStore": { "type": "null" } } }
+    }
+  ]
 }

@@ -23,7 +23,7 @@
     "database": { "engine": "postgres", "secretRef": "orders-api-db" },
     "dns": { "hostname": "orders-api.staging.example.com" },
     "secrets": [
-      { "name": "DATABASE_URL", "remoteKey": "platform/orders-api/staging/database" }
+      { "name": "DATABASE_URL", "remoteKey": "platform/small-team-idp/orders-api/staging/database" }
     ]
   }
 }

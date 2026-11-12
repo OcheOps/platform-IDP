@@ -23,4 +23,5 @@ ingress:
   hostname: example-api.staging.example.com
 database:
   engine: none
+secretStore: null
 secrets: []

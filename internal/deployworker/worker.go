@@ -16,7 +16,7 @@ type Work struct {
 	Template, TemplateVersion, CPU, Memory                                           string
 	MinReplicas, MaxReplicas, TargetCPU                                              int
 	Database, ImageReady                                                             bool
-	ImageRepository, ImageDigest, DatabaseSecretName                                 string
+	ImageRepository, ImageDigest, DatabaseSecretName, SecretStoreRoleARN             string
 	PullRequestNumber                                                                int64
 	DeploymentState                                                                  string
 }
@@ -61,7 +61,7 @@ func (worker *Worker) Reconcile(ctx context.Context) error {
 		return ErrNoWork
 	}
 	work.ImageRepository, work.ImageDigest = observation.ImageRepository, observation.ImageDigest
-	values, err := gitops.RenderValues(gitops.Work{Service: work.ServiceName, Owner: work.Owner, Template: work.Template, TemplateVersion: work.TemplateVersion, Environment: work.Environment, BaseDomain: work.BaseDomain, RequestID: work.RequestID, ImageRepository: work.ImageRepository, ImageDigest: work.ImageDigest, CPU: work.CPU, Memory: work.Memory, MinReplicas: work.MinReplicas, MaxReplicas: work.MaxReplicas, TargetCPU: work.TargetCPU, Database: work.Database, DatabaseSecretName: work.DatabaseSecretName})
+	values, err := gitops.RenderValues(gitops.Work{Service: work.ServiceName, Owner: work.Owner, Template: work.Template, TemplateVersion: work.TemplateVersion, Environment: work.Environment, BaseDomain: work.BaseDomain, RequestID: work.RequestID, AWSRegion: work.AWSRegion, SecretStoreRoleARN: work.SecretStoreRoleARN, ImageRepository: work.ImageRepository, ImageDigest: work.ImageDigest, CPU: work.CPU, Memory: work.Memory, MinReplicas: work.MinReplicas, MaxReplicas: work.MaxReplicas, TargetCPU: work.TargetCPU, Database: work.Database, DatabaseSecretName: work.DatabaseSecretName})
 	if err != nil {
 		return worker.fail(ctx, work.RequestID, "deployment_values_invalid", err)
 	}

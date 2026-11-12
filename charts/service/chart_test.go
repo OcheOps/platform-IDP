@@ -19,6 +19,8 @@ func TestGoAPIContractRendersSecureServiceResources(t *testing.T) {
 		"kind: Deployment",
 		"kind: HorizontalPodAutoscaler",
 		"kind: ExternalSecret",
+		"kind: ServiceAccount",
+		"kind: SecretStore",
 		"kind: Job",
 		"kind: Ingress",
 		"kind: NetworkPolicy",
@@ -29,6 +31,7 @@ func TestGoAPIContractRendersSecureServiceResources(t *testing.T) {
 		"argocd.argoproj.io/hook: Sync",
 		"command: [\"/migrate\"]",
 		"secretStoreRef:\n    kind: SecretStore\n    name: service-secrets",
+		"eks.amazonaws.com/role-arn: \"arn:aws:iam::123456789012:role/small-team-idp-orders-api-staging-secrets-8c7a25e2\"",
 		"port: 5432",
 		"orders-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"name: DATABASE_URL",
@@ -56,7 +59,7 @@ func TestServiceChartRejectsAmbiguousOrMissingDatabaseSecret(t *testing.T) {
 		},
 		{
 			name: "database mapping removed",
-			args: []string{"--set-json", "secrets=[]"},
+			args: []string{"--set-json", "secrets=[]", "--set-json", "secretStore=null"},
 			want: "postgres requires a DATABASE_URL secret mapping",
 		},
 		{

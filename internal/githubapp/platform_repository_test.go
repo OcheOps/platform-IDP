@@ -29,7 +29,7 @@ func TestPlatformRepositoryTemplateContainsPinnedPlanAndRealResources(t *testing
 			t.Errorf("apply workflow missing %q", want)
 		}
 	}
-	for _, want := range []string{`resource "aws_ecr_repository"`, `resource "aws_secretsmanager_secret"`} {
+	for _, want := range []string{`resource "aws_ecr_repository"`, `resource "aws_secretsmanager_secret"`, `data "terraform_remote_state" "foundation"`, `resource "aws_iam_role" "service_secrets"`, `resource "aws_iam_role_policy" "service_secrets"`, `system:serviceaccount:svc-${each.key}:service-secrets`, `local.resource_identities["${var.installation_id}/${each.key}/staging"].secretStoreRoleName`} {
 		if !strings.Contains(files["infrastructure/main.tf"], want) {
 			t.Errorf("module missing %q", want)
 		}
@@ -49,5 +49,25 @@ func TestPlatformRepositoryTemplateContainsPinnedPlanAndRealResources(t *testing
 	}
 	if output, err := exec.Command(terraform, "fmt", "-check", "-diff", directory).CombinedOutput(); err != nil {
 		t.Fatalf("generated HCL is not formatted: %v: %s", err, output)
+	}
+}
+
+func TestConfigFilesIncludeReviewedResourceIdentities(t *testing.T) {
+	requestID := "f4d26f61-ef7d-4bd9-9568-ae621d91187f"
+	work := configworker.Work{
+		RequestID: requestID, ServiceName: "orders-api",
+		Request:  []byte(`{"metadata":{"name":"orders-api","requestId":"` + requestID + `"},"spec":{"database":{"engine":"postgres"}}}`),
+		Estimate: []byte(`{"digest":"sha256:abc"}`),
+		Platform: configworker.Platform{InstallationID: "small-team-idp", AWSAccountID: "123456789012"},
+	}
+	files, err := configFiles(work)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resources := string(files["services/orders-api/staging/resources.json"])
+	for _, want := range []string{`"canonicalId": "small-team-idp/orders-api/staging"`, `"databaseSecretName": "platform/small-team-idp/orders-api/staging/database"`, `"secretStoreRoleName": "small-team-idp-orders-api-staging-secrets-8c7a25e2"`} {
+		if !strings.Contains(resources, want) {
+			t.Errorf("resources file missing %s: %s", want, resources)
+		}
 	}
 }

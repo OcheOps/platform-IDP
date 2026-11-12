@@ -67,7 +67,16 @@ func (store *FileStore) Next(ctx context.Context) (Work, error) {
 		if err := json.Unmarshal(record["request"], &request); err != nil {
 			return Work{}, errors.New("decode deployment service request")
 		}
-		work := Work{RequestID: text(record["requestId"]), ServiceName: text(record["serviceName"]), Owner: request.Metadata.Owner, Organization: store.organization, Repository: store.repository, Environment: "staging", BaseDomain: store.baseDomain, AWSAccountID: store.accountID, AWSRegion: store.region, Template: request.Spec.Template.ID, TemplateVersion: request.Spec.Template.Version, CPU: request.Spec.Capacity.CPU, Memory: request.Spec.Capacity.Memory, MinReplicas: request.Spec.Capacity.MinReplicas, MaxReplicas: request.Spec.Capacity.MaxReplicas, TargetCPU: 70, Database: request.Spec.Database.Engine == "postgres", DatabaseSecretName: text(record["databaseSecretName"]), PullRequestNumber: number(record["deploymentPullRequestNumber"]), DeploymentState: text(record["deploymentState"])}
+		var resources struct {
+			DatabaseSecretName string `json:"databaseSecretName"`
+			SecretStoreRoleARN string `json:"secretStoreRoleArn"`
+		}
+		if raw := record["resourceIdentities"]; len(raw) > 0 {
+			if err := json.Unmarshal(raw, &resources); err != nil {
+				return Work{}, errors.New("decode applied resource identities")
+			}
+		}
+		work := Work{RequestID: text(record["requestId"]), ServiceName: text(record["serviceName"]), Owner: request.Metadata.Owner, Organization: store.organization, Repository: store.repository, Environment: "staging", BaseDomain: store.baseDomain, AWSAccountID: store.accountID, AWSRegion: store.region, Template: request.Spec.Template.ID, TemplateVersion: request.Spec.Template.Version, CPU: request.Spec.Capacity.CPU, Memory: request.Spec.Capacity.Memory, MinReplicas: request.Spec.Capacity.MinReplicas, MaxReplicas: request.Spec.Capacity.MaxReplicas, TargetCPU: 70, Database: request.Spec.Database.Engine == "postgres", DatabaseSecretName: resources.DatabaseSecretName, SecretStoreRoleARN: resources.SecretStoreRoleARN, PullRequestNumber: number(record["deploymentPullRequestNumber"]), DeploymentState: text(record["deploymentState"])}
 		if work.RequestID == "" || work.ServiceName == "" || work.Owner == "" {
 			return Work{}, errors.New("deployment work record is incomplete")
 		}

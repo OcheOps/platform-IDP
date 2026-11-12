@@ -13,7 +13,8 @@
   },
   "ingress": { "hostname": "orders-api.staging.example.com" },
   "database": { "engine": "postgres", "secretName": "orders-api-db", "migrationCommand": "/migrate" },
+  "secretStore": { "roleARN": "arn:aws:iam::123456789012:role/small-team-idp-orders-api-staging-secrets-8c7a25e2", "region": "eu-west-1" },
   "secrets": [
-    { "environmentVariable": "DATABASE_URL", "secretName": "orders-api-db", "key": "url", "remoteKey": "platform/orders-api/staging/database" }
+    { "environmentVariable": "DATABASE_URL", "secretName": "orders-api-db", "key": "DATABASE_URL", "remoteKey": "platform/small-team-idp/orders-api/staging/database" }
   ]
 }

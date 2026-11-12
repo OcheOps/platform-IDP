@@ -50,7 +50,7 @@ func platformRepositoryFiles(work configworker.Work) (map[string]string, error) 
 	if !expectedARN.MatchString(p.AWSRoleARN) || strings.ContainsAny(p.StateBucket+p.LockTable+p.BaseDomain, "\r\n\"'") {
 		return nil, errors.New("platform role or backend values are invalid")
 	}
-	variables, _ := json.MarshalIndent(map[string]string{"installation_id": p.InstallationID, "aws_account_id": p.AWSAccountID, "aws_region": p.AWSRegion, "base_domain": p.BaseDomain}, "", "  ")
+	variables, _ := json.MarshalIndent(map[string]string{"installation_id": p.InstallationID, "aws_account_id": p.AWSAccountID, "aws_region": p.AWSRegion, "base_domain": p.BaseDomain, "state_bucket_name": p.StateBucket, "state_lock_table_name": p.LockTable}, "", "  ")
 	backend := "bucket = \"" + p.StateBucket + "\"\nkey = \"services/terraform.tfstate\"\nregion = \"" + p.AWSRegion + "\"\ndynamodb_table = \"" + p.LockTable + "\"\nencrypt = true\n"
 	return map[string]string{
 		"README.md":         "# Platform configuration\n\nManaged by Platform IDP. Service requests are reviewed through pull requests; do not commit secrets.\n",
@@ -80,15 +80,30 @@ const platformVariablesTF = `variable "installation_id" { type = string }
 variable "aws_account_id" { type = string }
 variable "aws_region" { type = string }
 variable "base_domain" { type = string }
+variable "state_bucket_name" { type = string }
+variable "state_lock_table_name" { type = string }
 `
 const platformMainTF = `locals {
-  request_files = fileset("${path.module}/../services", "*/staging/request.json")
-  requests      = { for path in local.request_files : jsondecode(file("${path.module}/../services/${path}")).metadata.name => jsondecode(file("${path.module}/../services/${path}")) }
-  tags          = { "platform-idp:managed" = "true", "platform-idp:installation" = var.installation_id, "platform-idp:environment" = "staging", "platform-idp:cost-scope" = "incremental" }
+  request_files       = fileset("${path.module}/../services", "*/staging/request.json")
+  requests            = { for path in local.request_files : jsondecode(file("${path.module}/../services/${path}")).metadata.name => jsondecode(file("${path.module}/../services/${path}")) }
+  resource_files      = fileset("${path.module}/../services", "*/staging/resources.json")
+  resource_identities = { for path in local.resource_files : jsondecode(file("${path.module}/../services/${path}")).canonicalId => jsondecode(file("${path.module}/../services/${path}")) }
+  database_requests   = { for name, request in local.requests : name => request if request.spec.database.engine == "postgres" }
+  tags                = { "platform-idp:managed" = "true", "platform-idp:installation" = var.installation_id, "platform-idp:environment" = "staging", "platform-idp:cost-scope" = "incremental" }
+}
+data "terraform_remote_state" "foundation" {
+  backend = "s3"
+  config = {
+    bucket         = var.state_bucket_name
+    key            = "foundation/terraform.tfstate"
+    region         = var.aws_region
+    dynamodb_table = var.state_lock_table_name
+    encrypt        = true
+  }
 }
 resource "aws_ecr_repository" "service" {
   for_each             = local.requests
-  name                 = "platform/${each.key}"
+  name                 = local.resource_identities["${var.installation_id}/${each.key}/staging"].ecrRepository
   image_tag_mutability = "IMMUTABLE"
   image_scanning_configuration { scan_on_push = true }
   encryption_configuration { encryption_type = "AES256" }
@@ -100,25 +115,69 @@ resource "aws_ecr_lifecycle_policy" "service" {
   policy     = jsonencode({ rules = [{ rulePriority = 1, description = "Retain the 20 most recent images", selection = { tagStatus = "any", countType = "imageCountMoreThan", countNumber = 20 }, action = { type = "expire" } }] })
 }
 resource "aws_secretsmanager_secret" "database" {
-  for_each                = { for name, request in local.requests : name => request if request.spec.database.engine == "postgres" }
-  name                    = "platform/${var.installation_id}/${each.key}/staging/database"
+  for_each                = local.database_requests
+  name                    = local.resource_identities["${var.installation_id}/${each.key}/staging"].databaseSecretName
   recovery_window_in_days = 7
   tags                    = merge(local.tags, { "platform-idp:service" = each.key, "platform-idp:owner" = each.value.metadata.owner, "platform-idp:request-id" = each.value.metadata.requestId })
+}
+resource "aws_iam_role" "service_secrets" {
+  for_each = local.database_requests
+  name     = local.resource_identities["${var.installation_id}/${each.key}/staging"].secretStoreRoleName
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Principal = { Federated = data.terraform_remote_state.foundation.outputs.oidc_provider_arn }
+      Condition = { StringEquals = {
+        "${data.terraform_remote_state.foundation.outputs.oidc_provider}:aud" = "sts.amazonaws.com"
+        "${data.terraform_remote_state.foundation.outputs.oidc_provider}:sub" = "system:serviceaccount:svc-${each.key}:service-secrets"
+      } }
+    }]
+  })
+  tags = merge(local.tags, { "platform-idp:service" = each.key, "platform-idp:owner" = each.value.metadata.owner, "platform-idp:request-id" = each.value.metadata.requestId })
+}
+resource "aws_iam_role_policy" "service_secrets" {
+  for_each = local.database_requests
+  name     = "read-service-secrets"
+  role     = aws_iam_role.service_secrets[each.key].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue", "secretsmanager:ListSecretVersionIds"]
+      Resource = "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${local.resource_identities["${var.installation_id}/${each.key}/staging"].databaseSecretName}-*"
+    }]
+  })
 }
 `
 const platformValidatePython = `import json, pathlib, re, subprocess, sys
 base, head = sys.argv[1], sys.argv[2]
 changed = subprocess.check_output(["git", "diff", "--name-only", base, head], text=True).splitlines()
-pattern = re.compile(r"services/([a-z][a-z0-9-]{0,38}[a-z0-9])/staging/(request|estimate)\.json")
+pattern = re.compile(r"services/([a-z][a-z0-9-]{0,38}[a-z0-9])/staging/(request|estimate|resources)\.json")
 matches = [pattern.fullmatch(path) for path in changed]
-if len(changed) != 2 or any(match is None for match in matches) or len({match.group(1) for match in matches}) != 1 or {match.group(2) for match in matches} != {"request", "estimate"}:
-    raise SystemExit("a provisioning PR must change exactly one request.json and estimate.json pair")
+if len(changed) != 3 or any(match is None for match in matches) or len({match.group(1) for match in matches}) != 1 or {match.group(2) for match in matches} != {"request", "estimate", "resources"}:
+    raise SystemExit("a provisioning PR must change exactly one request.json, estimate.json, and resources.json set")
 root = pathlib.Path("services") / matches[0].group(1) / "staging"
-request, estimate = json.loads((root / "request.json").read_text()), json.loads((root / "estimate.json").read_text())
+request, estimate, resources = (json.loads((root / name).read_text()) for name in ("request.json", "estimate.json", "resources.json"))
+platform = json.loads(pathlib.Path("infrastructure/platform.auto.tfvars.json").read_text())
 if request.get("kind") != "ServiceRequest" or request.get("metadata", {}).get("name") != matches[0].group(1) or request.get("spec", {}).get("environment") != "staging":
     raise SystemExit("request identity or environment is invalid")
 if not re.fullmatch(r"sha256:[0-9a-f]{64}", estimate.get("digest", "")) or estimate.get("currency") != "USD":
     raise SystemExit("estimate provenance is invalid")
+canonical = f"{platform.get('installation_id', '')}/{matches[0].group(1)}/staging"
+if resources.get("canonicalId") != canonical or resources.get("ecrRepository") != f"platform/{matches[0].group(1)}":
+    raise SystemExit("resource identity is invalid")
+database_enabled = request.get("spec", {}).get("database", {}).get("engine") == "postgres"
+database_fields = ("databaseSecretName", "secretStoreRoleName", "secretStoreRoleArn")
+if database_enabled:
+    secret_name = f"platform/{canonical}/database"
+    role_name = resources.get("secretStoreRoleName", "")
+    role_arn = f"arn:aws:iam::{platform.get('aws_account_id', '')}:role/{role_name}"
+    if resources.get("databaseSecretName") != secret_name or not re.fullmatch(r"[A-Za-z0-9+=,.@_-]{1,55}-[0-9a-f]{8}", role_name) or resources.get("secretStoreRoleArn") != role_arn:
+        raise SystemExit("database resource identity is invalid")
+elif any(field in resources for field in database_fields):
+    raise SystemExit("database-free request contains database resource identities")
 capacity = request["spec"]["capacity"]
 if capacity["minReplicas"] > capacity["maxReplicas"] or capacity["maxReplicas"] > 10:
     raise SystemExit("capacity exceeds platform policy")

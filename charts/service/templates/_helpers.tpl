@@ -28,12 +28,12 @@ platform.idp/metrics-enabled: "true"
 {{- end -}}
 {{- $_ := set $seenSecrets .secretName true -}}
 {{- $_ := set $seenSecretEnvironment .environmentVariable true -}}
-{{- if and (eq .environmentVariable "DATABASE_URL") (eq .secretName $.Values.database.secretName) (eq .key "url") -}}
+{{- if and (eq .environmentVariable "DATABASE_URL") (eq .secretName $.Values.database.secretName) (eq .key "DATABASE_URL") -}}
 {{- $databaseURLFound = true -}}
 {{- end -}}
 {{- end -}}
 {{- if and (eq .Values.database.engine "postgres") (not $databaseURLFound) -}}
-{{- fail "postgres requires a DATABASE_URL secret mapping whose secretName matches database.secretName and whose key is url" -}}
+{{- fail "postgres requires a DATABASE_URL secret mapping whose secretName matches database.secretName and whose key is DATABASE_URL" -}}
 {{- end -}}
 {{- end }}
 

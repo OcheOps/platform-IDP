@@ -26,11 +26,19 @@ helm template orders-api charts/service \
   --values contracts/examples/go-api-helm-values.json
 ```
 
-The provisioning layer must create a `service-secrets` `SecretStore` in each
-service namespace, backed by a service-specific IAM role and secret prefix. The
-chart creates `ExternalSecret` mappings against that namespaced store. A shared
+The provisioning layer creates one deterministic IAM role per database-enabled
+service. Its OIDC trust is restricted to the `service-secrets` service account
+in that service's staging namespace, and its policy can read only the matching
+Secrets Manager prefix. GitOps values carry the non-secret role ARN and region;
+the shared chart creates the service account and namespaced `service-secrets`
+`SecretStore`, then creates `ExternalSecret` mappings against it. A shared
 cluster-wide store is deliberately forbidden because it would allow one service
 namespace to request another service's secrets.
+
+This slice establishes the least-privilege delivery path for credentials. The
+database provisioner that creates the PostgreSQL database and user and writes
+the `DATABASE_URL` secret version remains separate work; an empty Secrets
+Manager container is not treated as a deployable credential.
 
 The deployment contract is rendered by `internal/gitops`: it produces one
 digest-pinned `values.json` per staging service and an Argo CD ApplicationSet

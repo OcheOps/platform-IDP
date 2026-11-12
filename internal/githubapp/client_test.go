@@ -173,9 +173,11 @@ func TestClientCreatesIdempotentPlatformConfigPullRequest(t *testing.T) {
 			branchCreated = true
 			writeJSON(w, 201, map[string]any{})
 		case "GET /repos/acme/platform-config/contents/services%2Forders-api%2Fstaging%2Frequest.json":
-			writeJSON(w, 200, encodedContent(`{"kind":"ServiceRequest","metadata":{"name":"orders-api","requestId":"f4d26f61-ef7d-4bd9-9568-ae621d91187f"}}`+"\n"))
+			writeJSON(w, 200, encodedContent(`{"kind":"ServiceRequest","metadata":{"name":"orders-api","requestId":"f4d26f61-ef7d-4bd9-9568-ae621d91187f"},"spec":{"database":{"engine":"postgres"}}}`+"\n"))
 		case "GET /repos/acme/platform-config/contents/services%2Forders-api%2Fstaging%2Festimate.json":
 			writeJSON(w, 200, encodedContent(`{"digest":"sha256:abc","incrementalService":{"display":"$10.00"},"previewScenario":{"display":"$1.00"}}`+"\n"))
+		case "GET /repos/acme/platform-config/contents/services%2Forders-api%2Fstaging%2Fresources.json":
+			writeJSON(w, 200, encodedContent(`{"canonicalId":"small-team-idp/orders-api/staging","ecrRepository":"platform/orders-api","databaseSecretName":"platform/small-team-idp/orders-api/staging/database","secretStoreRoleName":"small-team-idp-orders-api-staging-secrets-8c7a25e2","secretStoreRoleArn":"arn:aws:iam::123456789012:role/small-team-idp-orders-api-staging-secrets-8c7a25e2"}`+"\n"))
 		case "GET /repos/acme/platform-config/pulls":
 			if pullCreated {
 				writeJSON(w, 200, []any{configPullResponse()})
@@ -188,7 +190,7 @@ func TestClientCreatesIdempotentPlatformConfigPullRequest(t *testing.T) {
 		case "GET /repos/acme/platform-config/pulls/17":
 			writeJSON(w, 200, configPullResponse())
 		case "GET /repos/acme/platform-config/pulls/17/files":
-			writeJSON(w, 200, []map[string]string{{"filename": "services/orders-api/staging/request.json", "status": "added"}, {"filename": "services/orders-api/staging/estimate.json", "status": "added"}})
+			writeJSON(w, 200, []map[string]string{{"filename": "services/orders-api/staging/request.json", "status": "added"}, {"filename": "services/orders-api/staging/estimate.json", "status": "added"}, {"filename": "services/orders-api/staging/resources.json", "status": "added"}})
 		default:
 			t.Errorf("unexpected request %s %s", r.Method, r.URL.String())
 			w.WriteHeader(500)
@@ -201,7 +203,7 @@ func TestClientCreatesIdempotentPlatformConfigPullRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	work := configworker.Work{RequestID: requestID, Organization: "acme", ServiceName: "orders-api", Repository: "platform-config", Branch: "platform/request-" + requestID, Request: []byte(`{"kind":"ServiceRequest","metadata":{"name":"orders-api","requestId":"f4d26f61-ef7d-4bd9-9568-ae621d91187f"}}`), Estimate: []byte(`{"digest":"sha256:abc","incrementalService":{"display":"$10.00"},"previewScenario":{"display":"$1.00"}}`)}
+	work := configworker.Work{RequestID: requestID, Organization: "acme", ServiceName: "orders-api", Repository: "platform-config", Branch: "platform/request-" + requestID, Request: []byte(`{"kind":"ServiceRequest","metadata":{"name":"orders-api","requestId":"f4d26f61-ef7d-4bd9-9568-ae621d91187f"},"spec":{"database":{"engine":"postgres"}}}`), Estimate: []byte(`{"digest":"sha256:abc","incrementalService":{"display":"$10.00"},"previewScenario":{"display":"$1.00"}}`), Platform: configworker.Platform{InstallationID: "small-team-idp", AWSAccountID: "123456789012"}}
 	for range 2 {
 		sha, err := client.EnsureChange(context.Background(), work)
 		if err != nil || sha != "request-head" {

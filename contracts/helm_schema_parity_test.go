@@ -22,6 +22,7 @@ func TestHelmChartSchemaMatchesCanonicalContractCorpus(t *testing.T) {
 		{name: "valid Go API", valid: true, edit: func(map[string]any) {}},
 		{name: "mutable image", edit: func(value map[string]any) { value["image"].(map[string]any)["digest"] = "latest" }},
 		{name: "postgres secret missing", edit: func(value map[string]any) { delete(value["database"].(map[string]any), "secretName") }},
+		{name: "secret store identity missing", edit: func(value map[string]any) { delete(value, "secretStore") }},
 		{name: "replica bounds inverted", edit: func(value map[string]any) {
 			autoscaling := value["deployment"].(map[string]any)["autoscaling"].(map[string]any)
 			autoscaling["minReplicas"], autoscaling["maxReplicas"] = float64(3), float64(2)

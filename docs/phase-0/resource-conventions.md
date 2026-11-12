@@ -22,12 +22,13 @@ ID when provider limits or global uniqueness make the plain name unsafe.
 | ECR repository | `platform/<service>` |
 | Database | `svc_<normalized-service>_<hash>` |
 | Database user | `usr_<normalized-service>_<environment-hash>` |
-| Secrets Manager prefix | `platform/<service>/<environment>/` |
+| Secrets Manager prefix | `platform/<installation>/<service>/<environment>/` |
 | S3/OpenTofu state key | `services/<service>/<environment>/terraform.tfstate` |
 | Staging DNS | `<service>.staging.<domain>` |
 | Preview DNS | `pr-<number>.<service>.preview.<domain>` |
 
-Names are calculated by one shared library. Truncation preserves the hash.
+Names are calculated by one shared library and committed as reviewed resource
+identities before OpenTofu consumes them. Truncation preserves the hash.
 
 ## Required AWS tags
 
