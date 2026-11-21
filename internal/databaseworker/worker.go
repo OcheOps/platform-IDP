@@ -12,6 +12,9 @@ import (
 var ErrNoWork = errors.New("no database provisioning work is ready")
 
 type Work struct {
+	// ServiceName is used only to name control-plane Jobs; the in-cluster
+	// provisioner does not require it.
+	ServiceName                                                                                           string
 	RequestID, DatabaseName, DatabaseUser, DatabaseHost, MasterSecretName, PasswordSecretName, SecretName string
 	DatabasePort                                                                                          int
 }

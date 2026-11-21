@@ -130,8 +130,45 @@ merge SHA, approved plan digest, canonical environment ID, ECR repository
 identity, database/role identities, and database secret identity. The database
 worker moves the request to `deploying` only after the database, login role,
 and `DATABASE_URL` secret are ready. The database operation is packaged as a
-one-shot EKS Job with a dedicated IRSA role; launching and observing that Job
-from the durable workflow is the remaining bridge. Failed apply runs enter
+one-shot EKS Job with a dedicated IRSA role, launched and observed by the
+repository worker (see "Database Job reconciliation" below). Failed apply runs enter
 `apply_failed`; rerunning the same GitHub Actions workflow is safe because
 OpenTofu remote state and deterministic resource names make the operation
 convergent.
+
+## Database Job reconciliation
+
+When `KUBERNETES_API_URL` is set, the repository worker reconciles every
+request in `provisioning_database`. For each request it derives the same
+deterministic name as `charts/database-provisioner`
+(`database-<service>-<sha256(requestId)[:8]>`) and, if no Job exists yet,
+records the attempt and server-side applies the request's egress
+NetworkPolicy and then the digest-pinned Job in `platform-system`. The Job
+carries only database identities and Secrets Manager secret names; the control
+plane never reads or transmits credentials. Existing Jobs are never
+re-applied, so a changed provisioner image cannot mutate an in-flight Job.
+
+Observation is read-only. A `Complete` Job moves the request to `deploying`
+and records `database.provisioned`. A `Failed` Job records
+`database_job_failed` (or `database_job_deadline_exceeded`) and enters
+`database_failed`. A Job owned by a different request records
+`database_job_conflict`. Failed requests are not relaunched automatically: an
+operator inspects the Job logs, deletes the Job, and returns the request to
+`provisioning_database`. Because the provisioner is convergent, a Job removed
+by its one-hour TTL before observation is simply relaunched.
+
+Configuration:
+
+| Variable | Purpose |
+| --- | --- |
+| `KUBERNETES_API_URL` | HTTPS EKS API endpoint; enables the reconciler. |
+| `KUBERNETES_TOKEN_FILE` | Bearer token for `platform-system/platform-control-plane`, re-read on every request. |
+| `KUBERNETES_CA_FILE` | Optional PEM cluster CA (the foundation `cluster_certificate_authority_data` output, base64-decoded). |
+| `DATABASE_PROVISIONER_IMAGE` | `repository@sha256:<digest>`; mutable tags are rejected. |
+| `DATABASE_HOST` / `DATABASE_PORT` | Shared RDS address (foundation `database_address`) and port (default `5432`). |
+
+The add-ons stage creates the `platform-control-plane` service account with a
+namespaced Role limited to `get`, `create`, and `patch` on Jobs and
+NetworkPolicies; it cannot read Secrets. For local development, mint a
+short-lived token with
+`kubectl create token platform-control-plane -n platform-system --duration=1h`.

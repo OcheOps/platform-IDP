@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -27,46 +28,64 @@ func NewFileStore(root, host string, port int, masterSecretName string) *FileSto
 }
 
 func (store *FileStore) NextDatabase(ctx context.Context) (Work, error) {
-	if err := ctx.Err(); err != nil {
-		return Work{}, err
-	}
-	entries, err := os.ReadDir(filepath.Join(store.root, "requests"))
-	if errors.Is(err, os.ErrNotExist) {
-		return Work{}, ErrNoWork
-	}
+	works, err := store.databases(ctx, "provisioning_database", "database_failed")
 	if err != nil {
 		return Work{}, err
 	}
+	if len(works) == 0 {
+		return Work{}, ErrNoWork
+	}
+	return works[0], nil
+}
+
+// PendingDatabases returns every request awaiting database provisioning.
+// Failed requests are excluded and wait for operator review.
+func (store *FileStore) PendingDatabases(ctx context.Context) ([]Work, error) {
+	return store.databases(ctx, "provisioning_database")
+}
+
+func (store *FileStore) databases(ctx context.Context, states ...string) ([]Work, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(filepath.Join(store.root, "requests"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	var works []Work
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
 		record, err := readRecord(filepath.Join(store.root, "requests", entry.Name()))
 		if err != nil {
-			return Work{}, err
+			return nil, err
 		}
-		state := recordText(record, "requestState")
-		if state != "provisioning_database" && state != "database_failed" {
+		if !slices.Contains(states, recordText(record, "requestState")) {
 			continue
 		}
 		var resources struct {
 			DatabaseName, DatabaseUser, DatabaseSecretName, DatabasePasswordSecretName string
 		}
 		if err := json.Unmarshal(record["resourceIdentities"], &resources); err != nil {
-			return Work{}, errors.New("decode database resource identities")
+			return nil, errors.New("decode database resource identities")
 		}
 		work := Work{
-			RequestID: recordText(record, "requestId"), DatabaseName: resources.DatabaseName, DatabaseUser: resources.DatabaseUser,
+			ServiceName: recordText(record, "serviceName"),
+			RequestID:   recordText(record, "requestId"), DatabaseName: resources.DatabaseName, DatabaseUser: resources.DatabaseUser,
 			DatabaseHost: store.host, DatabasePort: store.port, MasterSecretName: store.masterSecretName, SecretName: resources.DatabaseSecretName,
 			PasswordSecretName: resources.DatabasePasswordSecretName,
 		}
 		if err := validateWork(work); err != nil {
-			return Work{}, err
+			return nil, err
 		}
-		return work, nil
+		works = append(works, work)
 	}
-	return Work{}, ErrNoWork
+	return works, nil
 }
 
 func (store *FileStore) Started(_ context.Context, id string) error {

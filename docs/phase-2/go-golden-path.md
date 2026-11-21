@@ -50,9 +50,11 @@ inside EKS. IRSA grants it access only to the shared master secret, service
 reconciliation with an advisory lock, rejects ownership-marker collisions,
 revokes `PUBLIC` database connectivity, and closes its admin connection after
 each job. `charts/database-provisioner` runs a digest-pinned, non-root,
-read-only Job with bounded retries and egress policy. The control-plane
-launcher and Job observer remain the next orchestration slice; an empty
-Secrets Manager container is never treated as a deployable credential.
+read-only Job with bounded retries and egress policy. The repository worker's
+database Job reconciler (`internal/databasejob`) launches that Job for each
+request in `provisioning_database` and records `deploying` only when the Job
+reports `Complete`; an empty Secrets Manager container is never treated as a
+deployable credential.
 
 The deployment contract is rendered by `internal/gitops`: it produces one
 digest-pinned `values.json` per staging service and an Argo CD ApplicationSet

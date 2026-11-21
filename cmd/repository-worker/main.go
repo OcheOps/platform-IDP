@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -19,8 +21,11 @@ import (
 	"github.com/OcheOps/platform-IDP/internal/argocd"
 	"github.com/OcheOps/platform-IDP/internal/bootstrap"
 	"github.com/OcheOps/platform-IDP/internal/configworker"
+	"github.com/OcheOps/platform-IDP/internal/databasejob"
+	"github.com/OcheOps/platform-IDP/internal/databaseworker"
 	"github.com/OcheOps/platform-IDP/internal/deployworker"
 	"github.com/OcheOps/platform-IDP/internal/githubapp"
+	"github.com/OcheOps/platform-IDP/internal/kubernetes"
 	"github.com/OcheOps/platform-IDP/internal/planworker"
 	"github.com/OcheOps/platform-IDP/internal/repositoryworker"
 	"github.com/OcheOps/platform-IDP/internal/runtimeworker"
@@ -99,6 +104,10 @@ func run(args []string) error {
 		}
 		runtimeWorkerInstance = runtimeworker.New(deployStore, github, argo)
 	}
+	databaseJobWorker, err := newDatabaseJobWorker(installation, os.Getenv)
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	interval := 30 * time.Second
@@ -108,12 +117,16 @@ func run(args []string) error {
 		planErr := planWorker.Reconcile(ctx)
 		approvalErr := approvalWorker.Reconcile(ctx)
 		applyErr := applyWorker.Reconcile(ctx)
+		databaseErr := error(databasejob.ErrNoWork)
+		if databaseJobWorker != nil {
+			databaseErr = databaseJobWorker.Reconcile(ctx)
+		}
 		deployErr := deployWorker.Reconcile(ctx)
 		runtimeErr := error(nil)
 		if runtimeWorkerInstance != nil {
 			runtimeErr = runtimeWorkerInstance.Reconcile(ctx)
 		}
-		if errors.Is(repositoryErr, context.Canceled) || errors.Is(configErr, context.Canceled) || errors.Is(planErr, context.Canceled) || errors.Is(approvalErr, context.Canceled) || errors.Is(applyErr, context.Canceled) || errors.Is(deployErr, context.Canceled) || errors.Is(runtimeErr, context.Canceled) {
+		if errors.Is(repositoryErr, context.Canceled) || errors.Is(configErr, context.Canceled) || errors.Is(planErr, context.Canceled) || errors.Is(approvalErr, context.Canceled) || errors.Is(applyErr, context.Canceled) || errors.Is(databaseErr, context.Canceled) || errors.Is(deployErr, context.Canceled) || errors.Is(runtimeErr, context.Canceled) {
 			return nil
 		}
 		if repositoryErr != nil && !errors.Is(repositoryErr, repositoryworker.ErrNoWork) {
@@ -131,13 +144,16 @@ func run(args []string) error {
 		if applyErr != nil && !errors.Is(applyErr, applyworker.ErrNoWork) {
 			slog.Error("apply reconciliation failed", "error", applyErr)
 		}
+		if databaseErr != nil && !errors.Is(databaseErr, databasejob.ErrNoWork) {
+			slog.Error("database Job reconciliation failed", "error", databaseErr)
+		}
 		if deployErr != nil && !errors.Is(deployErr, deployworker.ErrNoWork) {
 			slog.Error("deployment reconciliation failed", "error", deployErr)
 		}
 		if runtimeErr != nil && !errors.Is(runtimeErr, runtimeworker.ErrNoWork) {
 			slog.Error("runtime reconciliation failed", "error", runtimeErr)
 		}
-		if repositoryErr == nil || configErr == nil || planErr == nil || approvalErr == nil || applyErr == nil || deployErr == nil || runtimeErr == nil {
+		if repositoryErr == nil || configErr == nil || planErr == nil || approvalErr == nil || applyErr == nil || databaseErr == nil || deployErr == nil || runtimeErr == nil {
 			continue
 		}
 		timer := time.NewTimer(interval)
@@ -148,6 +164,61 @@ func run(args []string) error {
 		case <-timer.C:
 		}
 	}
+}
+
+// newDatabaseJobWorker returns nil when KUBERNETES_API_URL is unset; database
+// requests then remain in provisioning_database until a cluster is configured.
+func newDatabaseJobWorker(installation bootstrap.Config, getenv func(string) string) (*databasejob.Worker, error) {
+	apiURL := strings.TrimSpace(getenv("KUBERNETES_API_URL"))
+	if apiURL == "" {
+		return nil, nil
+	}
+	tokenFile := strings.TrimSpace(getenv("KUBERNETES_TOKEN_FILE"))
+	host := strings.TrimSpace(getenv("DATABASE_HOST"))
+	if tokenFile == "" || host == "" {
+		return nil, errors.New("KUBERNETES_TOKEN_FILE and DATABASE_HOST are required when KUBERNETES_API_URL is set")
+	}
+	port := 5432
+	if raw := strings.TrimSpace(getenv("DATABASE_PORT")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 65535 {
+			return nil, errors.New("DATABASE_PORT must be a TCP port")
+		}
+		port = parsed
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if caFile := strings.TrimSpace(getenv("KUBERNETES_CA_FILE")); caFile != "" {
+		pem, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, fmt.Errorf("read Kubernetes CA: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, errors.New("KUBERNETES_CA_FILE contains no PEM certificates")
+		}
+		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool}
+	}
+	cluster, err := kubernetes.NewClient(apiURL, &http.Client{Timeout: 30 * time.Second, Transport: transport}, func(context.Context) (string, error) {
+		// Re-read on every request so rotated short-lived tokens are picked up.
+		data, err := os.ReadFile(tokenFile)
+		if err != nil {
+			return "", errors.New("read Kubernetes token file")
+		}
+		token := strings.TrimSpace(string(data))
+		if token == "" || len(token) > 16<<10 {
+			return "", errors.New("Kubernetes token file is empty or unexpectedly large")
+		}
+		return token, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	masterSecret := fmt.Sprintf("platform/%s/shared/postgres-master", installation.InstallationID)
+	store := databaseworker.NewFileStore(valueOrDefault("GENERATED_DIRECTORY", ".platform-data"), host, port, masterSecret)
+	return databasejob.New(store, cluster, databasejob.Config{
+		Namespace: "platform-system", ServiceAccount: "database-provisioner", Image: strings.TrimSpace(getenv("DATABASE_PROVISIONER_IMAGE")),
+		AWSRegion: installation.AWS.Region, VPCCIDR: installation.Network.VPCCIDR,
+	})
 }
 
 func readPrivateKey(path string) ([]byte, error) {

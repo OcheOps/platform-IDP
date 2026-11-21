@@ -36,6 +36,56 @@ resource "kubernetes_service_account_v1" "database_provisioner" {
   automount_service_account_token = true
 }
 
+# Identity used by the control plane to launch and observe per-request database
+# Jobs. It can only manage Jobs and their egress policies in platform-system and
+# never reads Secrets; database credentials stay behind the provisioner's IRSA role.
+resource "kubernetes_service_account_v1" "platform_control_plane" {
+  metadata {
+    name      = "platform-control-plane"
+    namespace = kubernetes_namespace_v1.platform_system.metadata[0].name
+    labels = {
+      "app.kubernetes.io/name"       = "platform-control-plane"
+      "app.kubernetes.io/part-of"    = "platform-idp"
+      "app.kubernetes.io/managed-by" = "OpenTofu"
+    }
+  }
+  automount_service_account_token = false
+}
+
+resource "kubernetes_role_v1" "database_job_launcher" {
+  metadata {
+    name      = "database-job-launcher"
+    namespace = kubernetes_namespace_v1.platform_system.metadata[0].name
+  }
+  rule {
+    api_groups = ["batch"]
+    resources  = ["jobs"]
+    verbs      = ["get", "create", "patch"]
+  }
+  rule {
+    api_groups = ["networking.k8s.io"]
+    resources  = ["networkpolicies"]
+    verbs      = ["get", "create", "patch"]
+  }
+}
+
+resource "kubernetes_role_binding_v1" "database_job_launcher" {
+  metadata {
+    name      = "database-job-launcher"
+    namespace = kubernetes_namespace_v1.platform_system.metadata[0].name
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role_v1.database_job_launcher.metadata[0].name
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account_v1.platform_control_plane.metadata[0].name
+    namespace = kubernetes_namespace_v1.platform_system.metadata[0].name
+  }
+}
+
 resource "helm_release" "cert_manager" {
   name             = "cert-manager"
   namespace        = "cert-manager"
