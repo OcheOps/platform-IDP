@@ -1,0 +1,21 @@
+image:
+  repository: ""
+  digest: ""
+awsRegion: ""
+request:
+  id: ""
+  service: ""
+database:
+  name: ""
+  user: ""
+  host: ""
+  port: 5432
+secrets:
+  master: ""
+  password: ""
+  service: ""
+serviceAccountName: database-provisioner
+vpcCIDR: 10.42.0.0/16
+resources:
+  requests: { cpu: 25m, memory: 64Mi }
+  limits: { cpu: 250m, memory: 128Mi }

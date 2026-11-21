@@ -11,7 +11,8 @@ notes beside every estimate.
 Every plan separates:
 
 1. **Shared platform baseline** — EKS control plane, base worker capacity,
-   shared RDS baseline, ingress, NAT/networking, and observability.
+   shared RDS baseline, ingress, NAT/networking, private STS/Secrets Manager
+   interface endpoints, and observability.
 2. **Incremental monthly service estimate** — requested compute reservation,
    allocated database/storage allowance, incremental load-balancer or storage
    resources, Secrets Manager entries, DNS, and expected logs/metrics.

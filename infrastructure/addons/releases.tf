@@ -16,6 +16,26 @@ resource "helm_release" "ingress_nginx" {
   })]
 }
 
+resource "kubernetes_namespace_v1" "platform_system" {
+  metadata { name = "platform-system" }
+}
+
+resource "kubernetes_service_account_v1" "database_provisioner" {
+  metadata {
+    name      = "database-provisioner"
+    namespace = kubernetes_namespace_v1.platform_system.metadata[0].name
+    annotations = {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.workload["database_provisioner"].arn
+    }
+    labels = {
+      "app.kubernetes.io/name"       = "database-provisioner"
+      "app.kubernetes.io/part-of"    = "platform-idp"
+      "app.kubernetes.io/managed-by" = "OpenTofu"
+    }
+  }
+  automount_service_account_token = true
+}
+
 resource "helm_release" "cert_manager" {
   name             = "cert-manager"
   namespace        = "cert-manager"

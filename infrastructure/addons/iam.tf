@@ -38,6 +38,28 @@ resource "aws_iam_role_policy" "external_secrets" {
   policy = data.aws_iam_policy_document.external_secrets.json
 }
 
+data "aws_iam_policy_document" "database_provisioner" {
+  statement {
+    sid       = "ReadDatabaseMaster"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [data.terraform_remote_state.foundation.outputs.database_master_secret_arn]
+  }
+  statement {
+    sid     = "ManageServiceDatabaseCredentials"
+    actions = ["secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue"]
+    resources = [
+      "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:platform/${var.installation_id}/*/staging/database-*",
+      "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:platform/${var.installation_id}/*/staging/internal/database-password-*"
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "database_provisioner" {
+  name   = "provision-service-databases"
+  role   = aws_iam_role.workload["database_provisioner"].id
+  policy = data.aws_iam_policy_document.database_provisioner.json
+}
+
 data "aws_iam_policy_document" "external_dns" {
   statement {
     actions   = ["route53:ChangeResourceRecordSets"]

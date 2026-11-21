@@ -14,7 +14,10 @@ data "terraform_remote_state" "foundation" {
 
 locals {
   oidc_subjects = merge(
-    { external_secrets = "system:serviceaccount:external-secrets:external-secrets" },
+    {
+      external_secrets     = "system:serviceaccount:external-secrets:external-secrets"
+      database_provisioner = "system:serviceaccount:platform-system:database-provisioner"
+    },
     var.dns_provider == "route53" ? { external_dns = "system:serviceaccount:external-dns:external-dns" } : {}
   )
   tags = {

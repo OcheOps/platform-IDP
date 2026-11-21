@@ -129,7 +129,9 @@ PostgreSQL services (or directly to `deploying` otherwise), recording the
 merge SHA, approved plan digest, canonical environment ID, ECR repository
 identity, database/role identities, and database secret identity. The database
 worker moves the request to `deploying` only after the database, login role,
-and `DATABASE_URL` secret are ready. Failed apply runs enter
+and `DATABASE_URL` secret are ready. The database operation is packaged as a
+one-shot EKS Job with a dedicated IRSA role; launching and observing that Job
+from the durable workflow is the remaining bridge. Failed apply runs enter
 `apply_failed`; rerunning the same GitHub Actions workflow is safe because
 OpenTofu remote state and deterministic resource names make the operation
 convergent.

@@ -43,9 +43,15 @@ and publishes a single TLS-required `DATABASE_URL` value. The retry password
 uses a separate provisioner-only secret identity; the service-visible secret
 contains only `DATABASE_URL`. The
 workflow pauses in `provisioning_database` after infrastructure apply and only
-enters `deploying` after credential publication succeeds. The AWS Secrets
-Manager and PostgreSQL connection adapters, plus the in-cluster deployment
-that can reach private RDS, remain the next runtime-wiring slice; an empty
+enters `deploying` after credential publication succeeds. The one-shot
+`cmd/database-provisioner` runtime uses the AWS SDK for Go v2 and pgx from
+inside EKS. IRSA grants it access only to the shared master secret, service
+`DATABASE_URL` secrets, and provisioner-only password secrets. pgx serializes
+reconciliation with an advisory lock, rejects ownership-marker collisions,
+revokes `PUBLIC` database connectivity, and closes its admin connection after
+each job. `charts/database-provisioner` runs a digest-pinned, non-root,
+read-only Job with bounded retries and egress policy. The control-plane
+launcher and Job observer remain the next orchestration slice; an empty
 Secrets Manager container is never treated as a deployable credential.
 
 The deployment contract is rendered by `internal/gitops`: it produces one

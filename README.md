@@ -30,12 +30,13 @@ The repository contains a working Phase 0 foundation and the first Phase 2 provi
 - GitOps value rendering for digest-pinned staging releases and a constrained Argo CD ApplicationSet contract.
 - Per-service External Secrets IAM roles, service accounts, and namespaced secret stores restricted to each staging secret prefix.
 - An idempotent PostgreSQL provisioning core with deterministic database/login identities, restricted roles, TLS-required `DATABASE_URL` generation, secret-only publication, and durable provisioning states.
+- An EKS one-shot database provisioner using IRSA, AWS Secrets Manager, pgx advisory locking, ownership markers, an immutable-image Helm Job, and network/security policies.
 - A deployment worker that waits for the tested ECR image digest, creates a deterministic GitOps pull request, and records `awaiting_merge` until it is merged.
 - Authenticated Argo CD health observation; a runtime reconciler marks requests ready only after the merged revision is synced and healthy.
 
 ### Deliberately not finished yet
 
-- In-cluster PostgreSQL/AWS Secrets Manager runtime adapters that execute the provisioning core against private RDS, plus DNS/TLS verification, logs, metrics, and catalogue health links for each service.
+- Control-plane launch/observation of per-service database Jobs, plus DNS/TLS verification, logs, metrics, and catalogue health links for each service.
 - Pull-request preview environments, TTL cleanup, and temporary databases.
 - Node/NestJS, Spring Boot, and Next.js golden paths.
 - Portal UI, authentication/OAuth, catalogue read models, and SSE progress.
@@ -73,9 +74,11 @@ The v1 deployment target is one self-hosted AWS account containing one EKS clust
 - `cmd/idp-bootstrap` — operator installation CLI.
 - `cmd/platform-api` — service-request API.
 - `cmd/repository-worker` — repository, config-PR, plan, approval, apply, GitOps deployment, and Argo runtime reconcilers.
+- `cmd/database-provisioner` — one-shot in-cluster RDS PostgreSQL and Secrets Manager reconciler.
 - `internal/*` — contracts and provider adapters.
 - `infrastructure/` — OpenTofu foundation and add-ons modules.
 - `charts/service` — shared service Helm chart.
+- `charts/database-provisioner` — hardened per-request database provisioning Job.
 - `templates/go-chi-api` — first golden path.
 - `contracts/` — JSON schemas and contract tests.
 - `docs/` — phase specifications, security model, workflow, and conventions.

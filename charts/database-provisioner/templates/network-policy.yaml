@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "database-provisioner.name" . }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: database-provisioner
+      platform.idp/request-id: {{ .Values.request.id | quote }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    - to:
+        - ipBlock: { cidr: {{ .Values.vpcCIDR | quote }} }
+      ports:
+        - { protocol: TCP, port: {{ .Values.database.port }} }
+    - to:
+        - ipBlock: { cidr: {{ .Values.vpcCIDR | quote }} }
+      ports:
+        - { protocol: TCP, port: 443 }

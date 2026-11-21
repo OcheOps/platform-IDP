@@ -65,6 +65,35 @@ module "eks" {
   }
 }
 
+resource "aws_security_group" "interface_endpoints" {
+  name_prefix = "${var.installation_id}-endpoints-"
+  description = "Private AWS API access from EKS nodes"
+  vpc_id      = module.vpc.vpc_id
+  ingress {
+    description     = "HTTPS from EKS nodes"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [module.eks.node_security_group_id]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_vpc_endpoint" "private_aws_api" {
+  for_each            = toset(["secretsmanager", "sts"])
+  vpc_id              = module.vpc.vpc_id
+  service_name        = "com.amazonaws.${var.aws_region}.${each.key}"
+  vpc_endpoint_type   = "Interface"
+  private_dns_enabled = true
+  subnet_ids          = module.vpc.private_subnets
+  security_group_ids  = [aws_security_group.interface_endpoints.id]
+}
+
 resource "random_password" "database_master" {
   length           = 32
   special          = true

@@ -120,6 +120,12 @@ resource "aws_secretsmanager_secret" "database" {
   recovery_window_in_days = 7
   tags                    = merge(local.tags, { "platform-idp:service" = each.key, "platform-idp:owner" = each.value.metadata.owner, "platform-idp:request-id" = each.value.metadata.requestId })
 }
+resource "aws_secretsmanager_secret" "database_password" {
+  for_each                = local.database_requests
+  name                    = local.resource_identities["${var.installation_id}/${each.key}/staging"].databasePasswordSecretName
+  recovery_window_in_days = 7
+  tags                    = merge(local.tags, { "platform-idp:service" = each.key, "platform-idp:owner" = each.value.metadata.owner, "platform-idp:request-id" = each.value.metadata.requestId, "platform-idp:secret-scope" = "provisioner-only" })
+}
 resource "aws_iam_role" "service_secrets" {
   for_each = local.database_requests
   name     = local.resource_identities["${var.installation_id}/${each.key}/staging"].secretStoreRoleName

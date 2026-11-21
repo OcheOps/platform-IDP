@@ -4,3 +4,4 @@ output "argocd_expected_url" {
 }
 output "external_secrets_role_arn" { value = aws_iam_role.workload["external_secrets"].arn }
 output "external_dns_role_arn" { value = try(aws_iam_role.workload["external_dns"].arn, null) }
+output "database_provisioner_role_arn" { value = aws_iam_role.workload["database_provisioner"].arn }

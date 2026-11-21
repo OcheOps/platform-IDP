@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["image", "awsRegion", "request", "database", "secrets", "serviceAccountName", "vpcCIDR"],
+  "properties": {
+    "image": { "type": "object", "required": ["repository", "digest"], "properties": { "repository": { "type": "string", "minLength": 1 }, "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" } } },
+    "awsRegion": { "type": "string", "pattern": "^[a-z]{2}-[a-z]+-[0-9]+$" },
+    "request": { "type": "object", "required": ["id", "service"], "properties": { "id": { "type": "string", "minLength": 1 }, "service": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,38}[a-z0-9]$" } } },
+    "database": { "type": "object", "required": ["name", "user", "host", "port"], "properties": { "name": { "type": "string", "pattern": "^svc_[a-z0-9_]+$" }, "user": { "type": "string", "pattern": "^usr_[a-z0-9_]+$" }, "host": { "type": "string", "minLength": 1 }, "port": { "type": "integer", "minimum": 1, "maximum": 65535 } } },
+    "secrets": { "type": "object", "required": ["master", "password", "service"], "properties": { "master": { "type": "string", "minLength": 1 }, "password": { "type": "string", "minLength": 1 }, "service": { "type": "string", "minLength": 1 } } },
+    "serviceAccountName": { "type": "string", "const": "database-provisioner" },
+    "vpcCIDR": { "type": "string", "pattern": "^[0-9./]+$" },
+    "resources": { "type": "object" }
+  }
+}
