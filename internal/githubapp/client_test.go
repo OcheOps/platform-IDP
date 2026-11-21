@@ -15,6 +15,7 @@ import (
 	"github.com/OcheOps/platform-IDP/internal/configworker"
 	"github.com/OcheOps/platform-IDP/internal/githubapp"
 	"github.com/OcheOps/platform-IDP/internal/repositoryworker"
+	"github.com/OcheOps/platform-IDP/internal/resourceidentity"
 )
 
 func TestClientCreatesInitialRepositoryAndVerifiesPolicy(t *testing.T) {
@@ -139,7 +140,7 @@ func TestClientCreatesIdempotentPlatformConfigPullRequest(t *testing.T) {
 		t.Skipf("local HTTP sockets unavailable: %v", err)
 	}
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method + " " + r.URL.Path {
+		switch r.Method + " " + r.URL.EscapedPath() {
 		case "GET /repos/acme/platform-config":
 			writeJSON(w, 200, map[string]any{"id": 88, "full_name": "acme/platform-config", "private": true, "description": "Platform IDP desired state (schema v1)"})
 		case "PATCH /repos/acme/platform-config":
@@ -173,11 +174,13 @@ func TestClientCreatesIdempotentPlatformConfigPullRequest(t *testing.T) {
 			branchCreated = true
 			writeJSON(w, 201, map[string]any{})
 		case "GET /repos/acme/platform-config/contents/services%2Forders-api%2Fstaging%2Frequest.json":
-			writeJSON(w, 200, encodedContent(`{"kind":"ServiceRequest","metadata":{"name":"orders-api","requestId":"f4d26f61-ef7d-4bd9-9568-ae621d91187f"},"spec":{"database":{"engine":"postgres"}}}`+"\n"))
+			writeJSON(w, 200, encodedContent(indentedJSON(`{"kind":"ServiceRequest","metadata":{"name":"orders-api","requestId":"f4d26f61-ef7d-4bd9-9568-ae621d91187f"},"spec":{"database":{"engine":"postgres"}}}`)))
 		case "GET /repos/acme/platform-config/contents/services%2Forders-api%2Fstaging%2Festimate.json":
-			writeJSON(w, 200, encodedContent(`{"digest":"sha256:abc","incrementalService":{"display":"$10.00"},"previewScenario":{"display":"$1.00"}}`+"\n"))
+			writeJSON(w, 200, encodedContent(indentedJSON(`{"digest":"sha256:abc","incrementalService":{"display":"$10.00"},"previewScenario":{"display":"$1.00"}}`)))
 		case "GET /repos/acme/platform-config/contents/services%2Forders-api%2Fstaging%2Fresources.json":
-			writeJSON(w, 200, encodedContent(`{"canonicalId":"small-team-idp/orders-api/staging","ecrRepository":"platform/orders-api","databaseSecretName":"platform/small-team-idp/orders-api/staging/database","secretStoreRoleName":"small-team-idp-orders-api-staging-secrets-8c7a25e2","secretStoreRoleArn":"arn:aws:iam::123456789012:role/small-team-idp-orders-api-staging-secrets-8c7a25e2"}`+"\n"))
+			resources, _ := resourceidentity.Staging("small-team-idp", "orders-api", "123456789012", true)
+			data, _ := json.MarshalIndent(resources, "", "  ")
+			writeJSON(w, 200, encodedContent(string(data)+"\n"))
 		case "GET /repos/acme/platform-config/pulls":
 			if pullCreated {
 				writeJSON(w, 200, []any{configPullResponse()})
@@ -275,4 +278,11 @@ func countCall(calls []string, want string) int {
 		}
 	}
 	return count
+}
+
+func indentedJSON(compact string) string {
+	var value any
+	_ = json.Unmarshal([]byte(compact), &value)
+	data, _ := json.MarshalIndent(value, "", "  ")
+	return string(data) + "\n"
 }
