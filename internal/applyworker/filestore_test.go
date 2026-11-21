@@ -42,7 +42,7 @@ func TestFileStorePersistsAppliedResourceIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"requestState": "deploying"`, `"applyMergeSHA": "merge-sha"`, `"action": "apply.completed"`, `"applyOperationKey": "` + id + `/apply/head-sha"`, `"canonicalId": "small-team-idp/orders-api/staging"`, `"ecrRepository": "platform/orders-api"`, `"databaseSecretName": "platform/small-team-idp/orders-api/staging/database"`, `"secretStoreRoleArn": "arn:aws:iam::123456789012:role/small-team-idp-orders-api-staging-secrets-8c7a25e2"`, `"planDigest": "` + digest + `"`} {
+	for _, want := range []string{`"requestState": "provisioning_database"`, `"applyMergeSHA": "merge-sha"`, `"action": "apply.completed"`, `"applyOperationKey": "` + id + `/apply/head-sha"`, `"canonicalId": "small-team-idp/orders-api/staging"`, `"ecrRepository": "platform/orders-api"`, `"databaseSecretName": "platform/small-team-idp/orders-api/staging/database"`, `"databasePasswordSecretName": "platform/small-team-idp/orders-api/staging/internal/database-password"`, `"databaseName": "svc_orders_api_8c7a25e2"`, `"databaseUser": "usr_orders_api_8c7a25e2"`, `"secretStoreRoleArn": "arn:aws:iam::123456789012:role/small-team-idp-orders-api-staging-secrets-8c7a25e2"`, `"planDigest": "` + digest + `"`} {
 		if !strings.Contains(string(stored), want) {
 			t.Errorf("missing %s", want)
 		}

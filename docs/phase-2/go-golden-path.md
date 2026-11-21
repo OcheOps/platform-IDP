@@ -35,10 +35,18 @@ the shared chart creates the service account and namespaced `service-secrets`
 cluster-wide store is deliberately forbidden because it would allow one service
 namespace to request another service's secrets.
 
-This slice establishes the least-privilege delivery path for credentials. The
-database provisioner that creates the PostgreSQL database and user and writes
-the `DATABASE_URL` secret version remains separate work; an empty Secrets
-Manager container is not treated as a deployable credential.
+The database provisioning core derives deterministic PostgreSQL database and
+login-role names, reconciles the role with no superuser, database-creation,
+role-creation, or inheritance privileges, creates the owned database
+idempotently, reuses one secret-backed password across interrupted attempts,
+and publishes a single TLS-required `DATABASE_URL` value. The retry password
+uses a separate provisioner-only secret identity; the service-visible secret
+contains only `DATABASE_URL`. The
+workflow pauses in `provisioning_database` after infrastructure apply and only
+enters `deploying` after credential publication succeeds. The AWS Secrets
+Manager and PostgreSQL connection adapters, plus the in-cluster deployment
+that can reach private RDS, remain the next runtime-wiring slice; an empty
+Secrets Manager container is never treated as a deployable credential.
 
 The deployment contract is rendered by `internal/gitops`: it produces one
 digest-pinned `values.json` per staging service and an Argo CD ApplicationSet

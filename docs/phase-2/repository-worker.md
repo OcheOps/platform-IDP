@@ -124,9 +124,12 @@ receipt only when a fresh plan proves that no resource changes remain.
 
 The apply reconciler independently verifies the merged pull request, original
 head SHA, GitHub Actions `apply` check, merge commit, and apply attestation. It
-then transitions the request through `applying` to `deploying`, recording the
+then transitions the request through `applying` to `provisioning_database` for
+PostgreSQL services (or directly to `deploying` otherwise), recording the
 merge SHA, approved plan digest, canonical environment ID, ECR repository
-identity, and database secret identity. Failed runs enter
+identity, database/role identities, and database secret identity. The database
+worker moves the request to `deploying` only after the database, login role,
+and `DATABASE_URL` secret are ready. Failed apply runs enter
 `apply_failed`; rerunning the same GitHub Actions workflow is safe because
 OpenTofu remote state and deterministic resource names make the operation
 convergent.

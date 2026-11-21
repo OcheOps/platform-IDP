@@ -29,12 +29,13 @@ The repository contains a working Phase 0 foundation and the first Phase 2 provi
 - Apply reconciliation with durable state transitions, deterministic resource identities, safe retries, and operation-key audit deduplication.
 - GitOps value rendering for digest-pinned staging releases and a constrained Argo CD ApplicationSet contract.
 - Per-service External Secrets IAM roles, service accounts, and namespaced secret stores restricted to each staging secret prefix.
+- An idempotent PostgreSQL provisioning core with deterministic database/login identities, restricted roles, TLS-required `DATABASE_URL` generation, secret-only publication, and durable provisioning states.
 - A deployment worker that waits for the tested ECR image digest, creates a deterministic GitOps pull request, and records `awaiting_merge` until it is merged.
 - Authenticated Argo CD health observation; a runtime reconciler marks requests ready only after the merged revision is synced and healthy.
 
 ### Deliberately not finished yet
 
-- Database/user creation and populated External Secrets credentials, plus DNS/TLS verification, logs, metrics, and catalogue health links for each service.
+- In-cluster PostgreSQL/AWS Secrets Manager runtime adapters that execute the provisioning core against private RDS, plus DNS/TLS verification, logs, metrics, and catalogue health links for each service.
 - Pull-request preview environments, TTL cleanup, and temporary databases.
 - Node/NestJS, Spring Boot, and Next.js golden paths.
 - Portal UI, authentication/OAuth, catalogue read models, and SSE progress.

@@ -97,10 +97,17 @@ func (store *FileStore) Applied(_ context.Context, work Work, mergeSHA string) e
 		}
 		if work.Database {
 			resources["databaseSecretName"] = identity.DatabaseSecretName
+			resources["databasePasswordSecretName"] = identity.DatabasePasswordSecretName
+			resources["databaseName"] = identity.DatabaseName
+			resources["databaseUser"] = identity.DatabaseUser
 			resources["secretStoreRoleName"] = identity.SecretStoreRoleName
 			resources["secretStoreRoleArn"] = identity.SecretStoreRoleARN
 		}
-		set(record, "requestState", "deploying")
+		nextState := "deploying"
+		if work.Database {
+			nextState = "provisioning_database"
+		}
+		set(record, "requestState", nextState)
 		set(record, "applyMergeSHA", mergeSHA)
 		set(record, "resourceIdentities", resources)
 		set(record, "failureCode", "")

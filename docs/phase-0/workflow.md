@@ -16,8 +16,10 @@ and must label stale or unavailable observations; it must not invent success.
 | `plan_failed` | Validation, policy, estimate, or OpenTofu plan fails | `planning`, `cancelled` |
 | `awaiting_approval` | A current plan and estimate are posted | `approved`, `planning`, `cancelled` |
 | `approved` | Independent engineering and platform approvals exist for the current head SHA | `applying`, `awaiting_approval` |
-| `applying` | Approved PR is merged and apply begins | `deploying`, `apply_failed` |
+| `applying` | Approved PR is merged and apply begins | `provisioning_database`, `deploying`, `apply_failed` |
 | `apply_failed` | OpenTofu apply fails or is interrupted | `applying`, `teardown_pending` |
+| `provisioning_database` | Shared PostgreSQL service identity is being reconciled | `deploying`, `database_failed` |
+| `database_failed` | Database, role, or credential publication failed safely | `provisioning_database`, `teardown_pending` |
 | `deploying` | Infrastructure is ready and Argo CD observes desired state | `ready`, `deploy_failed` |
 | `deploy_failed` | Argo sync or health deadline fails | `deploying`, `teardown_pending` |
 | `ready` | Desired revision is synced and healthy | `drifted`, `planning`, `teardown_pending` |

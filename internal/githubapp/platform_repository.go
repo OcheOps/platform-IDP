@@ -151,7 +151,7 @@ resource "aws_iam_role_policy" "service_secrets" {
   })
 }
 `
-const platformValidatePython = `import json, pathlib, re, subprocess, sys
+const platformValidatePython = `import hashlib, json, pathlib, re, subprocess, sys
 base, head = sys.argv[1], sys.argv[2]
 changed = subprocess.check_output(["git", "diff", "--name-only", base, head], text=True).splitlines()
 pattern = re.compile(r"services/([a-z][a-z0-9-]{0,38}[a-z0-9])/staging/(request|estimate|resources)\.json")
@@ -169,12 +169,17 @@ canonical = f"{platform.get('installation_id', '')}/{matches[0].group(1)}/stagin
 if resources.get("canonicalId") != canonical or resources.get("ecrRepository") != f"platform/{matches[0].group(1)}":
     raise SystemExit("resource identity is invalid")
 database_enabled = request.get("spec", {}).get("database", {}).get("engine") == "postgres"
-database_fields = ("databaseSecretName", "secretStoreRoleName", "secretStoreRoleArn")
+database_fields = ("databaseSecretName", "databasePasswordSecretName", "databaseName", "databaseUser", "secretStoreRoleName", "secretStoreRoleArn")
 if database_enabled:
     secret_name = f"platform/{canonical}/database"
+    password_secret_name = f"platform/{canonical}/internal/database-password"
+    suffix = hashlib.sha256(canonical.encode()).hexdigest()[:8]
+    service_sql = matches[0].group(1).replace("-", "_")[:50].rstrip("_")
+    database_name = f"svc_{service_sql}_{suffix}"
+    database_user = f"usr_{service_sql}_{suffix}"
     role_name = resources.get("secretStoreRoleName", "")
     role_arn = f"arn:aws:iam::{platform.get('aws_account_id', '')}:role/{role_name}"
-    if resources.get("databaseSecretName") != secret_name or not re.fullmatch(r"[A-Za-z0-9+=,.@_-]{1,55}-[0-9a-f]{8}", role_name) or resources.get("secretStoreRoleArn") != role_arn:
+    if resources.get("databaseSecretName") != secret_name or resources.get("databasePasswordSecretName") != password_secret_name or resources.get("databaseName") != database_name or resources.get("databaseUser") != database_user or not re.fullmatch(r"[A-Za-z0-9+=,.@_-]{1,55}-[0-9a-f]{8}", role_name) or resources.get("secretStoreRoleArn") != role_arn:
         raise SystemExit("database resource identity is invalid")
 elif any(field in resources for field in database_fields):
     raise SystemExit("database-free request contains database resource identities")

@@ -65,7 +65,7 @@ func TestConfigFilesIncludeReviewedResourceIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	resources := string(files["services/orders-api/staging/resources.json"])
-	for _, want := range []string{`"canonicalId": "small-team-idp/orders-api/staging"`, `"databaseSecretName": "platform/small-team-idp/orders-api/staging/database"`, `"secretStoreRoleName": "small-team-idp-orders-api-staging-secrets-8c7a25e2"`} {
+	for _, want := range []string{`"canonicalId": "small-team-idp/orders-api/staging"`, `"databaseSecretName": "platform/small-team-idp/orders-api/staging/database"`, `"databasePasswordSecretName": "platform/small-team-idp/orders-api/staging/internal/database-password"`, `"databaseName": "svc_orders_api_8c7a25e2"`, `"databaseUser": "usr_orders_api_8c7a25e2"`, `"secretStoreRoleName": "small-team-idp-orders-api-staging-secrets-8c7a25e2"`} {
 		if !strings.Contains(resources, want) {
 			t.Errorf("resources file missing %s: %s", want, resources)
 		}

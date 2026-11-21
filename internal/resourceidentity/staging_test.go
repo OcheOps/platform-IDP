@@ -1,6 +1,7 @@
 package resourceidentity_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/OcheOps/platform-IDP/internal/resourceidentity"
@@ -17,6 +18,15 @@ func TestStagingDatabaseResourcesAreDeterministicAndAWSBound(t *testing.T) {
 	if resources.DatabaseSecretName != "platform/small-team-idp/orders-api/staging/database" {
 		t.Fatalf("unexpected database secret: %#v", resources)
 	}
+	if resources.DatabasePasswordSecretName != "platform/small-team-idp/orders-api/staging/internal/database-password" {
+		t.Fatalf("unexpected internal database password secret: %#v", resources)
+	}
+	if strings.HasPrefix(resources.DatabasePasswordSecretName, resources.DatabaseSecretName+"-") {
+		t.Fatal("service-visible IAM secret prefix also matches the internal password secret")
+	}
+	if resources.DatabaseName != "svc_orders_api_8c7a25e2" || resources.DatabaseUser != "usr_orders_api_8c7a25e2" {
+		t.Fatalf("unexpected PostgreSQL identity: %#v", resources)
+	}
 	if resources.SecretStoreRoleName != "small-team-idp-orders-api-staging-secrets-8c7a25e2" {
 		t.Fatalf("unexpected secret role name: %#v", resources)
 	}
@@ -30,7 +40,7 @@ func TestStagingWithoutDatabaseOmitsDatabaseResources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resources.DatabaseSecretName != "" || resources.SecretStoreRoleName != "" || resources.SecretStoreRoleARN != "" {
+	if resources.DatabaseSecretName != "" || resources.DatabasePasswordSecretName != "" || resources.DatabaseName != "" || resources.DatabaseUser != "" || resources.SecretStoreRoleName != "" || resources.SecretStoreRoleARN != "" {
 		t.Fatalf("database-free service received database resources: %#v", resources)
 	}
 }
